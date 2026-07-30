@@ -290,16 +290,47 @@ export async function signUpWithEmail(
     };
   }
   const { data, error } = await supabase.auth.signUp({ email, password });
-  // Si Supabase tiene confirmación por email habilitada, data.user existe pero data.session es null
-  // Para apps personales conviene deshabilitar "Confirm email" en el dashboard, así entra directo.
   if (error) return { error: error.message };
-  if (data.user && !data.session) {
+
+  // Si ya hay sesión, no hace falta confirmar nada
+  if (data.session) return { error: null };
+
+  // Si no hay sesión, significa que Supabase requiere confirmación por email.
+  // Llamamos a nuestro endpoint server-side (usa service role key) para
+  // confirmar el email automáticamente y poder entrar sin esperar el correo.
+  try {
+    const res = await fetch("/api/auth/confirm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    if (res.ok) {
+      // Confirmación OK. Ahora hacer signIn automáticamente para no pedirle
+      // al usuario que vuelva a tipear email+password.
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (signInError) {
+        return {
+          error:
+            "Cuenta creada y confirmada. Ingresá con tu email y contraseña para entrar.",
+        };
+      }
+      return { error: null };
+    }
+    const body = await res.json().catch(() => ({}));
     return {
       error:
-        "Cuenta creada. Revisá tu email para confirmar (o deshabilitá 'Confirm email' en Supabase Auth para entrar directo).",
+        body.error ||
+        "Cuenta creada pero no se pudo confirmar automáticamente. Intentá entrar con tu email y contraseña.",
+    };
+  } catch {
+    return {
+      error:
+        "Cuenta creada. Intentá entrar con tu email y contraseña.",
     };
   }
-  return { error: null };
 }
 
 export async function signOut(): Promise<void> {
