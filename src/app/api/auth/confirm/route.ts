@@ -2,6 +2,16 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 /**
+ * Lista blanca de emails autorizados a registrarse.
+ * Cualquier otro email recibe 403 y el usuario no se crea.
+ *
+ * Para agregar un email nuevo, editá este array y hacé deploy.
+ */
+const ALLOWED_EMAILS = [
+  "javiermendieta.contacto@gmail.com",
+].map((e) => e.toLowerCase());
+
+/**
  * Confirma automáticamente el email de un usuario recién registrado.
  * Llamado server-side justo después del signUp() para evitar que el
  * usuario tenga que hacer click en el email de confirmación.
@@ -12,13 +22,21 @@ import { createClient } from "@supabase/supabase-js";
  *
  * Seguridad: requiere SUPABASE_SERVICE_ROLE_KEY (server-only, nunca
  * expuesta al cliente). Solo confirma usuarios que se acaban de
- * registrar con email+password válido.
+ * registrar con email+password válido Y están en la lista blanca.
  */
 export async function POST(req: Request) {
   try {
     const { email } = (await req.json()) as { email?: string };
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json({ error: "email inválido" }, { status: 400 });
+    }
+
+    // Lista blanca — si no está, rechazar
+    if (!ALLOWED_EMAILS.includes(email.toLowerCase())) {
+      return NextResponse.json(
+        { error: "Este email no está autorizado para usar la app." },
+        { status: 403 }
+      );
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;

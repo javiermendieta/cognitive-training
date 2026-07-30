@@ -16,6 +16,13 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Cognitive Training — Sistema de Entrenamiento Cognitivo",
   description: "10 minutos diarios. 5 días. Buffer de trabajo, cálculo cotidiano, retención y velocidad.",
+  icons: {
+    icon: [
+      { url: "/brain.svg", type: "image/svg+xml" },
+    ],
+    shortcut: ["/brain.svg"],
+    apple: [{ url: "/brain.svg", type: "image/svg+xml" }],
+  },
 };
 
 export default function RootLayout({

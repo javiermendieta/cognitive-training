@@ -278,10 +278,23 @@ export async function signInWithEmail(
   return { error: error?.message ?? null };
 }
 
+// Lista blanca de emails autorizados (debe coincidir con la server-side
+// en /api/auth/confirm/route.ts). Doble check: client + server.
+const ALLOWED_EMAILS = ["javiermendieta.contacto@gmail.com"].map((e) =>
+  e.toLowerCase()
+);
+
 export async function signUpWithEmail(
   email: string,
   password: string
 ): Promise<{ error: string | null }> {
+  // Check client-side para evitar crear usuarios que después no se confirmarán
+  if (!ALLOWED_EMAILS.includes(email.toLowerCase())) {
+    return {
+      error: "Este email no está autorizado para usar la app.",
+    };
+  }
+
   const supabase = await getSupabase();
   if (!supabase) {
     return {
@@ -318,6 +331,13 @@ export async function signUpWithEmail(
         };
       }
       return { error: null };
+    }
+    // Si el server rechazó por no estar en lista blanca, eliminar el usuario
+    // recién creado para no dejar basura.
+    if (res.status === 403) {
+      await supabase.auth.signOut();
+      const body = await res.json().catch(() => ({}));
+      return { error: body.error || "Email no autorizado." };
     }
     const body = await res.json().catch(() => ({}));
     return {

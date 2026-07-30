@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="brainGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#0a0a0a"/>
+  <!-- Brain outline: two hemispheres -->
+  <g fill="none" stroke="url(#brainGrad)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Left hemisphere -->
+    <path d="M28 14c-3 0-5 2-5 5-2 0-4 1.5-4 4-2 0-4 2-4 4.5 0 2 1 3.5 2.5 4.5-1 1-1.5 2.5-1 4 .5 1.5 2 2.5 3.5 2.5 0 2 1.5 4 4 4 2 0 4-1.5 4-4V18c0-2-2-4-4-4z"/>
+    <!-- Right hemisphere -->
+    <path d="M36 14c3 0 5 2 5 5 2 0 4 1.5 4 4 2 0 4 2 4 4.5 0 2-1 3.5-2.5 4.5 1 1 1.5 2.5 1 4-.5 1.5-2 2.5-3.5 2.5 0 2-1.5 4-4 4-2 0-4-1.5-4-4V18c0-2 2-4 4-4z"/>
+    <!-- Sulci (folds) left -->
+    <path d="M22 24c1 1 2 1.5 3 1.5M20 32c1.5 0.5 3 0.5 4.5 0M22 40c1-0.5 2-0.5 3 0"/>
+    <!-- Sulci right -->
+    <path d="M42 24c-1 1-2 1.5-3 1.5M44 32c-1.5 0.5-3 0.5-4.5 0M42 40c-1-0.5-2-0.5-3 0"/>
+    <!-- Central vertical line (hemisphere division) -->
+    <path d="M32 16v36" stroke-dasharray="1.5 2"/>
+  </g>
+  <!-- Brain stem -->
+  <path d="M28 50c2 2 6 2 8 0" fill="none" stroke="url(#brainGrad)" stroke-width="2.2" stroke-linecap="round"/>
+</svg>
