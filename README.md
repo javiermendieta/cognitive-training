@@ -43,13 +43,23 @@ Para Vercel: agregar las mismas variables en **Project Settings → Environment 
 
 ### 4. Deploy en Vercel
 
-```bash
-# Opción A: Vercel CLI
-npm i -g vercel
-vercel
-```
+**Opción A (recomendada): Conectar desde el dashboard**
 
-Opción B: Conectar el repo de GitHub en https://vercel.com/new
+1. Ir a https://vercel.com/new
+2. Importar el repo `javiermendieta/cognitive-training`
+3. En "Environment Variables", agregar:
+   - `NEXT_PUBLIC_SUPABASE_URL` = `https://uycysrfcfolvdtbkrols.supabase.co`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` = (tu anon key de Supabase)
+4. Click **Deploy**
+
+**Opción B: Vercel CLI**
+
+```bash
+npm i -g vercel
+vercel login
+vercel --prod
+# Cuando pregunte por env vars, agregar las dos de arriba
+```
 
 ### 5. Production
 
