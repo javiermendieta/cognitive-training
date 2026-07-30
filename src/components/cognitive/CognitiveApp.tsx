@@ -33,7 +33,7 @@ export function CognitiveApp() {
   const [activeDay, setActiveDay] = useState<SessionPlan["day"]>("lunes");
   const [stats, setStats] = useState<StatsData | null>(null);
   const [statsNonce, setStatsNonce] = useState(0);
-  const { user, loading: authLoading, login, logout } = useAuth();
+  const { user, loading: authLoading, login, register, logout } = useAuth();
 
   // Refrescar stats cuando cambia el user o la view (vía nonce)
   useEffect(() => {
@@ -81,6 +81,7 @@ export function CognitiveApp() {
         onClear={handleClearHistory}
         user={user}
         onLogin={login}
+        onRegister={register}
         onLogout={logout}
       />
     );
@@ -93,6 +94,7 @@ export function CognitiveApp() {
       onSeeStats={() => handleViewChange("stats")}
       user={user}
       onLogin={login}
+      onRegister={register}
       onLogout={logout}
     />
   );
@@ -100,12 +102,13 @@ export function CognitiveApp() {
 
 // ============ DASHBOARD ============
 
-function Dashboard({ stats, onStart, onSeeStats, user, onLogin, onLogout }: {
+function Dashboard({ stats, onStart, onSeeStats, user, onLogin, onRegister, onLogout }: {
   stats: StatsData | null;
   onStart: (day: SessionPlan["day"]) => void;
   onSeeStats: () => void;
   user: { email?: string } | null;
-  onLogin: (email: string) => Promise<{ error: string | null }>;
+  onLogin: (email: string, password: string) => Promise<{ error: string | null }>;
+  onRegister: (email: string, password: string) => Promise<{ error: string | null }>;
   onLogout: () => Promise<void>;
 }) {
   const today = getTodaySession();
@@ -131,7 +134,7 @@ function Dashboard({ stats, onStart, onSeeStats, user, onLogin, onLogout }: {
 
       {/* SYNC BAR */}
       <div className="mb-8">
-        <AuthBar user={user} onLogin={onLogin} onLogout={onLogout} />
+        <AuthBar user={user} onLogin={onLogin} onRegister={onRegister} onLogout={onLogout} />
       </div>
 
       {/* STATS GLOBALES */}
@@ -279,12 +282,13 @@ function Dashboard({ stats, onStart, onSeeStats, user, onLogin, onLogout }: {
 
 // ============ PANEL DE ESTADÍSTICAS ============
 
-function StatsPanel({ stats, onBack, onClear, user, onLogin, onLogout }: {
+function StatsPanel({ stats, onBack, onClear, user, onLogin, onRegister, onLogout }: {
   stats: StatsData | null;
   onBack: () => void;
   onClear: () => Promise<void>;
   user: { email?: string } | null;
-  onLogin: (email: string) => Promise<{ error: string | null }>;
+  onLogin: (email: string, password: string) => Promise<{ error: string | null }>;
+  onRegister: (email: string, password: string) => Promise<{ error: string | null }>;
   onLogout: () => Promise<void>;
 }) {
   if (!stats) {
@@ -323,7 +327,7 @@ function StatsPanel({ stats, onBack, onClear, user, onLogin, onLogout }: {
       <h2 className="text-2xl md:text-3xl font-bold mb-4">Tu historial</h2>
 
       <div className="mb-6">
-        <AuthBar user={user} onLogin={onLogin} onLogout={onLogout} />
+        <AuthBar user={user} onLogin={onLogin} onRegister={onRegister} onLogout={onLogout} />
       </div>
 
       {/* Resumen rápido */}

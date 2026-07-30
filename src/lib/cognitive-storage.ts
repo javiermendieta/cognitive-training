@@ -263,18 +263,43 @@ function computeStatsFromHistory(hist: SessionRecord[]): StatsData {
 
 // ===== AUTH HELPERS =====
 
-export async function signInWithMagicLink(email: string): Promise<{ error: string | null }> {
+export async function signInWithEmail(
+  email: string,
+  password: string
+): Promise<{ error: string | null }> {
   const supabase = await getSupabase();
   if (!supabase) {
-    return { error: "Supabase no está configurado. Configurá NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY." };
+    return {
+      error:
+        "Supabase no está configurado. Configurá NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+    };
   }
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: {
-      emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
-    },
-  });
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
   return { error: error?.message ?? null };
+}
+
+export async function signUpWithEmail(
+  email: string,
+  password: string
+): Promise<{ error: string | null }> {
+  const supabase = await getSupabase();
+  if (!supabase) {
+    return {
+      error:
+        "Supabase no está configurado. Configurá NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+    };
+  }
+  const { data, error } = await supabase.auth.signUp({ email, password });
+  // Si Supabase tiene confirmación por email habilitada, data.user existe pero data.session es null
+  // Para apps personales conviene deshabilitar "Confirm email" en el dashboard, así entra directo.
+  if (error) return { error: error.message };
+  if (data.user && !data.session) {
+    return {
+      error:
+        "Cuenta creada. Revisá tu email para confirmar (o deshabilitá 'Confirm email' en Supabase Auth para entrar directo).",
+    };
+  }
+  return { error: null };
 }
 
 export async function signOut(): Promise<void> {
