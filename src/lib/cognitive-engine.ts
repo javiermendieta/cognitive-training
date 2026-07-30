@@ -268,6 +268,11 @@ export interface MultitaskScenario extends BaseExercise {
 }
 
 export function genMultitask(): MultitaskScenario {
+  const noopValidate = (input: string) => ({
+    correct: false,
+    expected: "",
+    userAnswer: input,
+  });
   const scenarios: MultitaskScenario[] = [
     {
       id: crypto.randomUUID(),
@@ -275,6 +280,7 @@ export function genMultitask(): MultitaskScenario {
       prompt: "Leé una sola vez. Sin anotar. Respondé de memoria.",
       skill: "multitask",
       difficulty: 3,
+      validate: noopValidate,
       scenario:
         "Estás coordinando un restaurante el sábado a la noche. Tenés 4 mesas activas:\n" +
         "- Mesa 3 pidió a las 20:15, demora 25 min\n" +
@@ -298,6 +304,7 @@ export function genMultitask(): MultitaskScenario {
       prompt: "Leé una sola vez. Sin anotar. Respondé de memoria.",
       skill: "multitask",
       difficulty: 3,
+      validate: noopValidate,
       scenario:
         "Coordinás una flota de 5 remises el viernes a la mañana.\n" +
         "- Auto A sale 8:00, viaje de 45 min\n" +
