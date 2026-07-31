@@ -4,8 +4,15 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Check, X, Clock, ArrowRight, AlertTriangle, Eye, EyeOff } from "lucide-react";
-import type { BaseExercise, RetentionExercise, MultitaskScenario } from "@/lib/cognitive-engine";
+import { Check, X, Clock, ArrowRight, AlertTriangle, Eye, EyeOff, ChefHat } from "lucide-react";
+import type {
+  BaseExercise,
+  RetentionExercise,
+  MultitaskScenario,
+  MenuStudyExercise,
+  CustomerOrdersExercise,
+  KitchenComandaExercise,
+} from "@/lib/cognitive-engine";
 
 interface Props {
   exercise: BaseExercise;
@@ -416,6 +423,537 @@ export function MultitaskRunner({ exercise, onDone }: {
 
       {!revealed ? (
         <Button onClick={finish} size="lg" className="w-full h-12">
+          Finalizar y ver resultados
+        </Button>
+      ) : (
+        <Button
+          onClick={() => onDone(
+            exercise.questions.map((q, i) => ({
+              q: q.q,
+              userAnswer: answers[i],
+              correct: check(answers[i], q.a),
+              expected: q.a,
+            })),
+            Date.now() - startTimeRef.current
+          )}
+          size="lg"
+          className="w-full h-12"
+        >
+          Continuar
+        </Button>
+      )}
+    </Card>
+  );
+}
+
+
+// ============ COMPONENTE PARA MEMORIZACIÓN DE MENÚ ============
+
+export function MenuStudyRunner({ exercise, onDone }: {
+  exercise: MenuStudyExercise;
+  onDone: (results: { q: string; userAnswer: string; correct: boolean; expected: string }[], timeMs: number) => void;
+}) {
+  const [phase, setPhase] = useState<"study" | "questions">("study");
+  const [timeLeft, setTimeLeft] = useState(exercise.studyDurationMs);
+  const [answers, setAnswers] = useState<string[]>(() => exercise.questions.map(() => ""));
+  const [revealed, setRevealed] = useState(false);
+  const startTimeRef = useRef<number>(Date.now());
+
+  useEffect(() => {
+    if (phase !== "study") return;
+    const start = Date.now();
+    const interval = setInterval(() => {
+      const left = Math.max(0, exercise.studyDurationMs - (Date.now() - start));
+      setTimeLeft(left);
+      if (left === 0) {
+        clearInterval(interval);
+        startQuestions();
+      }
+    }, 50);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, exercise.id]);
+
+  const startQuestions = () => {
+    startTimeRef.current = Date.now();
+    setPhase("questions");
+  };
+
+  const check = (ans: string, expected: string): boolean => {
+    const a = ans.trim().toLowerCase();
+    const e = expected.toLowerCase();
+    if (a.length < 2) return false;
+    const aNum = parseInt(a.replace(/[^\d]/g, ""));
+    const eNum = parseInt(e.replace(/[^\d]/g, ""));
+    if (!isNaN(aNum) && !isNaN(eNum) && eNum > 0) {
+      return aNum === eNum;
+    }
+    return a.includes(e.slice(0, Math.min(5, e.length))) || e.includes(a.slice(0, Math.min(5, a.length)));
+  };
+
+  if (phase === "study") {
+    const seconds = Math.ceil(timeLeft / 1000);
+    return (
+      <Card className="p-6 md:p-8 border-amber-500/30 bg-amber-500/5">
+        <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <ChefHat className="w-3 h-3" />
+            Estudiá el menú · nivel {exercise.difficulty}
+          </span>
+          <span className="flex items-center gap-1 text-amber-400">
+            <Clock className="w-3 h-3" />
+            desaparece en {seconds}s
+          </span>
+        </div>
+
+        <div className="space-y-4">
+          {exercise.menu.map((cat) => (
+            <div key={cat.category}>
+              <div className="text-xs font-mono uppercase tracking-widest text-emerald-400 mb-2 border-b border-emerald-500/20 pb-1">
+                {cat.category}
+              </div>
+              <div className="space-y-1">
+                {cat.items.map((it) => (
+                  <div key={it.name} className="flex justify-between text-sm md:text-base">
+                    <span>{it.name}</span>
+                    <span className="font-mono text-muted-foreground">${it.price.toLocaleString("es-AR")}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="h-1.5 bg-muted rounded overflow-hidden mt-6">
+          <div
+            className="h-full bg-amber-500 transition-all duration-100"
+            style={{ width: `${(timeLeft / exercise.studyDurationMs) * 100}%` }}
+          />
+        </div>
+
+        <Button onClick={startQuestions} variant="ghost" size="sm" className="w-full mt-4 text-xs">
+          Ya memoricé, pasar a las preguntas
+        </Button>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-6 md:p-8 border-border/50 bg-card/50 backdrop-blur">
+      <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
+        <span>Preguntas del menú</span>
+        <span className="flex items-center gap-1 text-amber-400">
+          <EyeOff className="w-3 h-3" />
+          el menú ya NO está visible
+        </span>
+      </div>
+
+      <div className="space-y-4 mb-6">
+        {exercise.questions.map((q, i) => {
+          const ok = check(answers[i], q.a);
+          return (
+            <div key={i} className={revealed ? (
+              ok ? "p-3 rounded border border-emerald-500/40 bg-emerald-500/10" : "p-3 rounded border border-red-500/40 bg-red-500/10"
+            ) : "p-3 rounded border border-border/40 bg-background/30"}>
+              <div className="text-sm text-muted-foreground mb-1">P{i + 1}: {q.q}</div>
+              {revealed ? (
+                <>
+                  <div className="text-base">Tu respuesta: <span className="font-mono">{answers[i] || "—"}</span></div>
+                  <div className="text-sm text-muted-foreground">Esperada: <span className="font-mono">{q.a}</span></div>
+                </>
+              ) : (
+                <Input
+                  value={answers[i]}
+                  onChange={(e) => setAnswers((a) => a.map((v, j) => (j === i ? e.target.value : v)))}
+                  placeholder="Respuesta"
+                  className="h-10"
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {!revealed ? (
+        <Button onClick={() => setRevealed(true)} size="lg" className="w-full h-12">
+          Finalizar y ver resultados
+        </Button>
+      ) : (
+        <Button
+          onClick={() => onDone(
+            exercise.questions.map((q, i) => ({
+              q: q.q,
+              userAnswer: answers[i],
+              correct: check(answers[i], q.a),
+              expected: q.a,
+            })),
+            Date.now() - startTimeRef.current
+          )}
+          size="lg"
+          className="w-full h-12"
+        >
+          Continuar
+        </Button>
+      )}
+    </Card>
+  );
+}
+
+// ============ COMPONENTE PARA COMENSALES ============
+
+export function CustomerOrdersRunner({ exercise, onDone }: {
+  exercise: CustomerOrdersExercise;
+  onDone: (results: { q: string; userAnswer: string; correct: boolean; expected: string }[], timeMs: number) => void;
+}) {
+  const [phase, setPhase] = useState<"study" | "questions">("study");
+  const [timeLeft, setTimeLeft] = useState(exercise.studyDurationMs);
+  const [answers, setAnswers] = useState<string[]>(() => exercise.questions.map(() => ""));
+  const [revealed, setRevealed] = useState(false);
+  const startTimeRef = useRef<number>(Date.now());
+
+  useEffect(() => {
+    if (phase !== "study") return;
+    const start = Date.now();
+    const interval = setInterval(() => {
+      const left = Math.max(0, exercise.studyDurationMs - (Date.now() - start));
+      setTimeLeft(left);
+      if (left === 0) {
+        clearInterval(interval);
+        startQuestions();
+      }
+    }, 50);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, exercise.id]);
+
+  const startQuestions = () => {
+    startTimeRef.current = Date.now();
+    setPhase("questions");
+  };
+
+  const check = (ans: string, expected: string): boolean => {
+    const a = ans.trim().toLowerCase();
+    const e = expected.toLowerCase();
+    if (a.length < 2) return false;
+    return a.includes(e.slice(0, Math.min(5, e.length))) || e.includes(a.slice(0, Math.min(5, a.length)));
+  };
+
+  if (phase === "study") {
+    const seconds = Math.ceil(timeLeft / 1000);
+    return (
+      <Card className="p-6 md:p-8 border-amber-500/30 bg-amber-500/5">
+        <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <ChefHat className="w-3 h-3" />
+            Comensales · nivel {exercise.difficulty}
+          </span>
+          <span className="flex items-center gap-1 text-amber-400">
+            <Clock className="w-3 h-3" />
+            desaparece en {seconds}s
+          </span>
+        </div>
+
+        <div className="space-y-3">
+          {exercise.customers.map((c, i) => (
+            <div key={i} className="flex items-start gap-3 p-3 rounded border border-border/40 bg-background/30">
+              <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-300 flex items-center justify-center font-mono text-xs">
+                {i + 1}
+              </div>
+              <div className="flex-1">
+                <div className="font-semibold mb-1">{c.name}</div>
+                <div className="text-sm text-muted-foreground">
+                  {c.orders.map((o, j) => (
+                    <span key={j}>
+                      {j > 0 && <span className="mx-1 text-amber-400">·</span>}
+                      {o}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="h-1.5 bg-muted rounded overflow-hidden mt-6">
+          <div
+            className="h-full bg-amber-500 transition-all duration-100"
+            style={{ width: `${(timeLeft / exercise.studyDurationMs) * 100}%` }}
+          />
+        </div>
+
+        <Button onClick={startQuestions} variant="ghost" size="sm" className="w-full mt-4 text-xs">
+          Ya memoricé, pasar a las preguntas
+        </Button>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-6 md:p-8 border-border/50 bg-card/50 backdrop-blur">
+      <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
+        <span>Preguntas de comensales</span>
+        <span className="flex items-center gap-1 text-amber-400">
+          <EyeOff className="w-3 h-3" />
+          la lista ya NO está visible
+        </span>
+      </div>
+
+      <div className="space-y-4 mb-6">
+        {exercise.questions.map((q, i) => {
+          const ok = check(answers[i], q.a);
+          return (
+            <div key={i} className={revealed ? (
+              ok ? "p-3 rounded border border-emerald-500/40 bg-emerald-500/10" : "p-3 rounded border border-red-500/40 bg-red-500/10"
+            ) : "p-3 rounded border border-border/40 bg-background/30"}>
+              <div className="text-sm text-muted-foreground mb-1">P{i + 1}: {q.q}</div>
+              {revealed ? (
+                <>
+                  <div className="text-base">Tu respuesta: <span className="font-mono">{answers[i] || "—"}</span></div>
+                  <div className="text-sm text-muted-foreground">Esperada: <span className="font-mono">{q.a}</span></div>
+                </>
+              ) : (
+                <Input
+                  value={answers[i]}
+                  onChange={(e) => setAnswers((a) => a.map((v, j) => (j === i ? e.target.value : v)))}
+                  placeholder="Respuesta"
+                  className="h-10"
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {!revealed ? (
+        <Button onClick={() => setRevealed(true)} size="lg" className="w-full h-12">
+          Finalizar y ver resultados
+        </Button>
+      ) : (
+        <Button
+          onClick={() => onDone(
+            exercise.questions.map((q, i) => ({
+              q: q.q,
+              userAnswer: answers[i],
+              correct: check(answers[i], q.a),
+              expected: q.a,
+            })),
+            Date.now() - startTimeRef.current
+          )}
+          size="lg"
+          className="w-full h-12"
+        >
+          Continuar
+        </Button>
+      )}
+    </Card>
+  );
+}
+
+// ============ COMPONENTE PARA COMANDA DE COCINA ============
+// Fases: 1) estudio del estado inicial  2) secuencia de eventos  3) preguntas
+
+export function KitchenComandaRunner({ exercise, onDone }: {
+  exercise: KitchenComandaExercise;
+  onDone: (results: { q: string; userAnswer: string; correct: boolean; expected: string }[], timeMs: number) => void;
+}) {
+  const [phase, setPhase] = useState<"study" | "events" | "questions">("study");
+  const [timeLeft, setTimeLeft] = useState(exercise.studyDurationMs);
+  const [eventsShown, setEventsShown] = useState(0);
+  const [answers, setAnswers] = useState<string[]>(() => exercise.questions.map(() => ""));
+  const [revealed, setRevealed] = useState(false);
+  const startTimeRef = useRef<number>(Date.now());
+
+  // Fase 1: countdown para estudiar el estado inicial
+  useEffect(() => {
+    if (phase !== "study") return;
+    const start = Date.now();
+    const interval = setInterval(() => {
+      const left = Math.max(0, exercise.studyDurationMs - (Date.now() - start));
+      setTimeLeft(left);
+      if (left === 0) {
+        clearInterval(interval);
+        enterEventsPhase();
+      }
+    }, 50);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, exercise.id]);
+
+  // Fase 2: mostrar eventos uno por uno
+  useEffect(() => {
+    if (phase !== "events") return;
+    if (eventsShown >= exercise.events.length) {
+      startTimeRef.current = Date.now();
+      setPhase("questions");
+      return;
+    }
+    const ms = Math.round(exercise.eventsDurationMs / exercise.events.length);
+    const timeout = setTimeout(() => {
+      setEventsShown((n) => n + 1);
+    }, ms);
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, eventsShown, exercise.id]);
+
+  const enterEventsPhase = () => {
+    setPhase("events");
+    setEventsShown(0);
+  };
+
+  const check = (ans: string, expected: string): boolean => {
+    const a = ans.trim().toLowerCase();
+    const e = expected.toLowerCase();
+    if (a.length < 2) return false;
+    const aNum = parseInt(a.replace(/[^\d]/g, ""));
+    const eNum = parseInt(e.replace(/[^\d]/g, ""));
+    if (!isNaN(aNum) && !isNaN(eNum) && /^\d+$/.test(e.trim())) {
+      return aNum === eNum;
+    }
+    if (e.startsWith("sí") || e.startsWith("si")) {
+      return ["si", "sí", "yes", "completa", "completo"].some((k) => a.startsWith(k));
+    }
+    return a.includes(e.slice(0, Math.min(5, e.length))) || e.includes(a.slice(0, Math.min(5, a.length)));
+  };
+
+  // ---- FASE 1: ESTUDIO ----
+  if (phase === "study") {
+    const seconds = Math.ceil(timeLeft / 1000);
+    return (
+      <Card className="p-6 md:p-8 border-amber-500/30 bg-amber-500/5">
+        <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <ChefHat className="w-3 h-3" />
+            Comandas activas · nivel {exercise.difficulty}
+          </span>
+          <span className="flex items-center gap-1 text-amber-400">
+            <Clock className="w-3 h-3" />
+            desaparece en {seconds}s
+          </span>
+        </div>
+
+        <div className="space-y-3">
+          {exercise.initialState.map((t) => (
+            <div key={t.table} className="p-3 rounded border border-border/40 bg-background/30">
+              <div className="text-sm font-mono uppercase tracking-wider text-emerald-400 mb-2">
+                Mesa {t.table}
+              </div>
+              <div className="space-y-1">
+                {t.courses.map((c, i) => (
+                  <div key={i} className="flex justify-between text-sm">
+                    <span className="capitalize">{c.course}</span>
+                    <span>{c.dish}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="h-1.5 bg-muted rounded overflow-hidden mt-6">
+          <div
+            className="h-full bg-amber-500 transition-all duration-100"
+            style={{ width: `${(timeLeft / exercise.studyDurationMs) * 100}%` }}
+          />
+        </div>
+
+        <Button onClick={enterEventsPhase} variant="ghost" size="sm" className="w-full mt-4 text-xs">
+          Ya memoricé, empezar a cantar comandas
+        </Button>
+      </Card>
+    );
+  }
+
+  // ---- FASE 2: EVENTOS EN SECUENCIA ----
+  if (phase === "events") {
+    const current = exercise.events[eventsShown];
+    const total = exercise.events.length;
+    const ms = Math.round(exercise.eventsDurationMs / total);
+    const secondsLeft = Math.ceil((ms * (total - eventsShown)) / 1000);
+
+    return (
+      <Card className="p-6 md:p-8 border-emerald-500/30 bg-emerald-500/5">
+        <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <ChefHat className="w-3 h-3" />
+            Cantando comandas · evento {Math.min(eventsShown + 1, total)} / {total}
+          </span>
+          <span className="flex items-center gap-1 text-emerald-400">
+            <Clock className="w-3 h-3" />
+            {eventsShown < total ? `próximo en ${secondsLeft}s` : "listo"}
+          </span>
+        </div>
+
+        <div className="text-center py-10">
+          {eventsShown < total && current ? (
+            <>
+              <div className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2">
+                SALE
+              </div>
+              <div className="text-3xl md:text-5xl font-bold text-emerald-300 mb-2">
+                Mesa {current.table}
+              </div>
+              <div className="text-lg md:text-2xl text-foreground capitalize">
+                {current.course}: {current.dish}
+              </div>
+            </>
+          ) : (
+            <div className="text-2xl text-muted-foreground">Fin de comandas</div>
+          )}
+        </div>
+
+        <div className="h-1.5 bg-muted rounded overflow-hidden mt-6">
+          <div
+            className="h-full bg-emerald-500 transition-all duration-100"
+            style={{ width: `${(eventsShown / total) * 100}%` }}
+          />
+        </div>
+
+        <div className="mt-4 text-center text-xs text-muted-foreground">
+          Llevá el control mentalmente. No anotes.
+        </div>
+      </Card>
+    );
+  }
+
+  // ---- FASE 3: PREGUNTAS ----
+  return (
+    <Card className="p-6 md:p-8 border-border/50 bg-card/50 backdrop-blur">
+      <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
+        <span>Preguntas sobre el estado final</span>
+        <span className="flex items-center gap-1 text-amber-400">
+          <EyeOff className="w-3 h-3" />
+          las comandas ya NO están visibles
+        </span>
+      </div>
+
+      <div className="space-y-4 mb-6">
+        {exercise.questions.map((q, i) => {
+          const ok = check(answers[i], q.a);
+          return (
+            <div key={i} className={revealed ? (
+              ok ? "p-3 rounded border border-emerald-500/40 bg-emerald-500/10" : "p-3 rounded border border-red-500/40 bg-red-500/10"
+            ) : "p-3 rounded border border-border/40 bg-background/30"}>
+              <div className="text-sm text-muted-foreground mb-1">P{i + 1}: {q.q}</div>
+              {revealed ? (
+                <>
+                  <div className="text-base">Tu respuesta: <span className="font-mono">{answers[i] || "—"}</span></div>
+                  <div className="text-sm text-muted-foreground">Esperada: <span className="font-mono">{q.a}</span></div>
+                </>
+              ) : (
+                <Input
+                  value={answers[i]}
+                  onChange={(e) => setAnswers((a) => a.map((v, j) => (j === i ? e.target.value : v)))}
+                  placeholder="Respuesta"
+                  className="h-10"
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {!revealed ? (
+        <Button onClick={() => setRevealed(true)} size="lg" className="w-full h-12">
           Finalizar y ver resultados
         </Button>
       ) : (

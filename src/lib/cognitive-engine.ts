@@ -698,10 +698,396 @@ export function genSpeedExercise(): BaseExercise {
   };
 }
 
+// ============ SÁBADO: COCINA APLICADA (memoria + tracking en contexto) ============
+// Tres ejercicios temáticos:
+//   1. genMenuStudy        → memorizar menú (progresivo fácil→difícil)
+//   2. genCustomerOrders   → recordar quién pidió qué
+//   3. genKitchenComanda   → tracking de comandas con eventos en secuencia
+
+// ---- Datos base del menú (precios en ARS, contexto argentino) ----
+type MenuItem = { name: string; price: number };
+type MenuCategory = { category: string; items: MenuItem[] };
+
+const MENU_CATEGORIES: MenuCategory[] = [
+  {
+    category: "Entradas",
+    items: [
+      { name: "Empanadas de carne", price: 3500 },
+      { name: "Ensalada Caesar", price: 4200 },
+      { name: "Sopa de calabaza", price: 3800 },
+      { name: "Bruschetta", price: 3600 },
+      { name: "Provoleta", price: 4500 },
+      { name: "Rabas fritas", price: 6800 },
+    ],
+  },
+  {
+    category: "Principales",
+    items: [
+      { name: "Milanesa con fritas", price: 7800 },
+      { name: "Pizza napolitana", price: 7200 },
+      { name: "Ravioles de espinaca", price: 8500 },
+      { name: "Bife de chorizo", price: 12500 },
+      { name: "Pollo al horno", price: 8200 },
+      { name: "Pastel de papa", price: 7900 },
+      { name: "Sorrentinos", price: 8700 },
+      { name: "Fileto de merluza", price: 9300 },
+    ],
+  },
+  {
+    category: "Postres",
+    items: [
+      { name: "Flan mixto", price: 3200 },
+      { name: "Helado artesanal", price: 3500 },
+      { name: "Tiramisú", price: 3800 },
+      { name: "Panqueques con dulce", price: 3600 },
+      { name: "Queso y dulce", price: 3000 },
+      { name: "Mousse de chocolate", price: 3400 },
+    ],
+  },
+  {
+    category: "Bebidas",
+    items: [
+      { name: "Agua mineral", price: 1800 },
+      { name: "Vino Malbec (copa)", price: 3500 },
+      { name: "Limonada", price: 2500 },
+      { name: "Cerveza artesanal", price: 4200 },
+      { name: "Café espresso", price: 2200 },
+      { name: "Soda", price: 2000 },
+    ],
+  },
+];
+
+// ---- 1. Memorización de menú ----
+export interface MenuStudyExercise extends BaseExercise {
+  type: "menu_study";
+  menu: MenuCategory[];
+  questions: { q: string; a: string }[];
+  studyDurationMs: number;
+}
+
+// difficulty: 1=fácil (2 cat × 3 items=6), 2=medio (3 cat × 4=12), 3=difícil (4 cat × 5=20)
+export function genMenuStudy(forceDifficulty?: 1 | 2 | 3): MenuStudyExercise {
+  const difficulty = forceDifficulty ?? (pick([1, 2, 3]) as 1 | 2 | 3);
+  const categoriesCount = difficulty === 1 ? 2 : difficulty === 2 ? 3 : 4;
+  const itemsPerCat = difficulty === 1 ? 3 : difficulty === 2 ? 4 : 5;
+  const studySeconds = difficulty === 1 ? 12 : difficulty === 2 ? 20 : 32;
+
+  // Selección aleatoria de categorías e ítems dentro de cada una
+  const cats = [...MENU_CATEGORIES].sort(() => Math.random() - 0.5).slice(0, categoriesCount);
+  const menu: MenuCategory[] = cats.map((c) => ({
+    category: c.category,
+    items: [...c.items].sort(() => Math.random() - 0.5).slice(0, itemsPerCat),
+  }));
+
+  // ---- Generación de preguntas ----
+  const allQs: { q: string; a: string }[] = [];
+  const flatItems = menu.flatMap((c) => c.items.map((it) => ({ ...it, category: c.category })));
+
+  // Tipo A: precio de un ítem específico
+  flatItems.slice(0, 4).forEach((it) => {
+    allQs.push({
+      q: `¿Cuál era el precio de "${it.name}"?`,
+      a: formatARS(it.price),
+    });
+  });
+
+  // Tipo B: ¿en qué categoría estaba X?
+  flatItems.slice(0, 3).forEach((it) => {
+    allQs.push({
+      q: `¿En qué categoría estaba "${it.name}"?`,
+      a: it.category,
+    });
+  });
+
+  // Tipo C: ¿cuántos ítems hay en la categoría X?
+  menu.forEach((c) => {
+    allQs.push({
+      q: `¿Cuántos ítems tenía la categoría "${c.category}"?`,
+      a: String(c.items.length),
+    });
+  });
+
+  // Tipo D: plato más caro/barato de una categoría
+  menu.forEach((c) => {
+    const sorted = [...c.items].sort((a, b) => b.price - a.price);
+    allQs.push({
+      q: `¿Cuál era el ítem MÁS CARO de "${c.category}"?`,
+      a: sorted[0].name,
+    });
+    allQs.push({
+      q: `¿Cuál era el ítem MÁS BARATO de "${c.category}"?`,
+      a: sorted[sorted.length - 1].name,
+    });
+  });
+
+  // Tipo E: ¿qué categoría tenía más ítems?
+  const sortedCats = [...menu].sort((a, b) => b.items.length - a.items.length);
+  allQs.push({
+    q: `¿Qué categoría tenía MÁS ítems?`,
+    a: sortedCats[0].category,
+  });
+
+  // Seleccionar 5 preguntas al azar, mezclando tipos
+  const shuffled = [...allQs].sort(() => Math.random() - 0.5);
+  const questions = shuffled.slice(0, 5);
+
+  return {
+    id: crypto.randomUUID(),
+    type: "menu_study",
+    prompt: "Estudiá el menú. Luego vas a tener que responder preguntas SIN volver a verlo.",
+    skill: "retention",
+    difficulty,
+    menu,
+    questions,
+    studyDurationMs: studySeconds * 1000,
+    validate: (input) => ({
+      correct: false,
+      expected: "",
+      userAnswer: input,
+    }),
+  };
+}
+
+// ---- 2. Comensales: quién pidió qué ----
+const CLIENTES_NOMBRES = [
+  "María", "Juan", "Lucía", "Pedro", "Ana", "Carlos", "Sofía", "Diego",
+  "Elena", "Pablo", "Carmen", "Mateo", "Valeria", "Tomás",
+];
+
+export interface CustomerOrdersExercise extends BaseExercise {
+  type: "customer_orders";
+  customers: { name: string; orders: string[] }[];
+  questions: { q: string; a: string }[];
+  studyDurationMs: number;
+}
+
+// difficulty: 1=3 clientes×1 plato, 2=4×2 platos, 3=5×(2-3) platos
+export function genCustomerOrders(forceDifficulty?: 1 | 2 | 3): CustomerOrdersExercise {
+  const difficulty = forceDifficulty ?? (pick([1, 2, 3]) as 1 | 2 | 3);
+  const customersCount = difficulty === 1 ? 3 : difficulty === 2 ? 4 : 5;
+  const ordersPerCustomer = difficulty === 1 ? 1 : difficulty === 2 ? 2 : 0; // 0 = random 2-3
+  const studySeconds = difficulty === 1 ? 8 : difficulty === 2 ? 14 : 22;
+
+  // Pool de platos disponibles (sin bebidas para simplificar)
+  const dishPool = [
+    ...MENU_CATEGORIES[0].items.map((i) => i.name),
+    ...MENU_CATEGORIES[1].items.map((i) => i.name),
+    ...MENU_CATEGORIES[2].items.map((i) => i.name),
+  ];
+
+  // Seleccionar nombres únicos
+  const names = [...CLIENTES_NOMBRES].sort(() => Math.random() - 0.5).slice(0, customersCount);
+
+  // Asignar pedidos únicos por cliente (sin repetir plato dentro de su pedido)
+  const customers = names.map((name) => {
+    const n = ordersPerCustomer || rand(2, 3);
+    const orders = [...dishPool].sort(() => Math.random() - 0.5).slice(0, n);
+    return { name, orders };
+  });
+
+  // ---- Generar preguntas ----
+  const allQs: { q: string; a: string }[] = [];
+
+  // Tipo A: ¿qué pidió [Nombre]?
+  customers.forEach((c) => {
+    allQs.push({
+      q: `¿Qué pidió ${c.name}?`,
+      a: c.orders.join(", "),
+    });
+  });
+
+  // Tipo B: ¿quién pidió [Plato]?
+  customers.forEach((c) => {
+    c.orders.forEach((dish) => {
+      allQs.push({
+        q: `¿Quién pidió ${dish}?`,
+        a: c.name,
+      });
+    });
+  });
+
+  // Tipo C: ¿quién pidió más platos?
+  const sorted = [...customers].sort((a, b) => b.orders.length - a.orders.length);
+  allQs.push({
+    q: `¿Quién pidió MÁS platos?`,
+    a: sorted[0].name,
+  });
+
+  // Tipo D: ¿cuántos clientes pidieron postre?
+  const postres = new Set(MENU_CATEGORIES[2].items.map((i) => i.name));
+  const clientesConPostre = customers.filter((c) => c.orders.some((o) => postres.has(o)));
+  if (clientesConPostre.length > 0) {
+    allQs.push({
+      q: `¿Cuántos clientes pidieron postre?`,
+      a: String(clientesConPostre.length),
+    });
+  }
+
+  // Seleccionar 4 preguntas
+  const questions = [...allQs].sort(() => Math.random() - 0.5).slice(0, 4);
+
+  return {
+    id: crypto.randomUUID(),
+    type: "customer_orders",
+    prompt: "Memorizá quién pidió qué. Luego te pregunto.",
+    skill: "retention",
+    difficulty,
+    customers,
+    questions,
+    studyDurationMs: studySeconds * 1000,
+    validate: (input) => ({
+      correct: false,
+      expected: "",
+      userAnswer: input,
+    }),
+  };
+}
+
+// ---- 3. Comanda de cocina: tracking con eventos ----
+export interface KitchenComandaExercise extends BaseExercise {
+  type: "kitchen_comanda";
+  initialState: { table: number; courses: { course: string; dish: string; served: boolean }[] }[];
+  events: { table: number; course: string; dish: string }[];
+  questions: { q: string; a: string }[];
+  studyDurationMs: number;    // tiempo para estudiar estado inicial
+  eventsDurationMs: number;   // tiempo total para mostrar eventos en secuencia
+}
+
+const COURSES = [
+  { course: "entrada", dishes: ["Empanadas", "Ensalada Caesar", "Sopa de calabaza", "Provoleta"] },
+  { course: "principal", dishes: ["Milanesa", "Pizza napolitana", "Ravioles", "Bife de chorizo", "Pollo al horno"] },
+  { course: "postre", dishes: ["Flan mixto", "Helado", "Tiramisú", "Panqueques con dulce"] },
+];
+
+// difficulty: 1=2 mesas×2 cursos, 3 eventos; 2=3×3, 6 eventos; 3=4×3, 9-10 eventos
+export function genKitchenComanda(forceDifficulty?: 1 | 2 | 3): KitchenComandaExercise {
+  const difficulty = forceDifficulty ?? (pick([1, 2, 3]) as 1 | 2 | 3);
+  const tablesCount = difficulty === 1 ? 2 : difficulty === 2 ? 3 : 4;
+  const coursesPerTable = difficulty === 1 ? 2 : 3;
+  const eventsCount = difficulty === 1 ? 3 : difficulty === 2 ? 6 : 10;
+  const studySeconds = difficulty === 1 ? 10 : difficulty === 2 ? 16 : 24;
+  const eventSecondsEach = difficulty === 1 ? 4 : difficulty === 2 ? 3.2 : 2.6;
+
+  // Crear mesas con números realistas (30-80)
+  const tableNumbers = Array.from({ length: 51 }, (_, i) => i + 30)
+    .sort(() => Math.random() - 0.5)
+    .slice(0, tablesCount);
+
+  // Generar cursos para cada mesa
+  const initialState = tableNumbers.map((table) => {
+    const selectedCourses = [...COURSES].slice(0, coursesPerTable);
+    const courses = selectedCourses.map((c) => {
+      const dish = pick(c.dishes);
+      return { course: c.course, dish, served: false };
+    });
+    return { table, courses };
+  });
+
+  // ---- Generar secuencia de eventos ----
+  // Servir en orden (entrada → principal → postre) dejando algunas mesas incompletas
+  const allPendingCourses = initialState.flatMap((t) =>
+    t.courses.map((c) => ({ table: t.table, course: c.course, dish: c.dish }))
+  );
+
+  const courseOrder = ["entrada", "principal", "postre"];
+  const sortedPending = [...allPendingCourses].sort((a, b) => {
+    if (a.table !== b.table) return a.table - b.table;
+    return courseOrder.indexOf(a.course) - courseOrder.indexOf(b.course);
+  });
+
+  const events: { table: number; course: string; dish: string }[] = [];
+  for (let i = 0; i < Math.min(eventsCount, sortedPending.length); i++) {
+    events.push(sortedPending[i]);
+  }
+
+  // Calcular estado final
+  const finalState = initialState.map((t) => ({
+    ...t,
+    courses: t.courses.map((c) => {
+      const wasServed = events.some(
+        (e) => e.table === t.table && e.course === c.course && e.dish === c.dish
+      );
+      return { ...c, served: wasServed };
+    }),
+  }));
+
+  // ---- Generar preguntas sobre el estado final ----
+  const allQs: { q: string; a: string }[] = [];
+
+  // Tipo A: ¿qué falta en la mesa X? / ¿está completa?
+  finalState.forEach((t) => {
+    const pending = t.courses.filter((c) => !c.served);
+    if (pending.length > 0) {
+      allQs.push({
+        q: `¿Qué falta en la mesa ${t.table}?`,
+        a: pending.map((p) => `${p.course} (${p.dish})`).join(" + "),
+      });
+    } else {
+      allQs.push({
+        q: `¿La comanda de la mesa ${t.table} está completa?`,
+        a: "Sí, completa",
+      });
+    }
+  });
+
+  // Tipo B: ¿cuántas mesas están completas?
+  const completas = finalState.filter((t) => t.courses.every((c) => c.served));
+  allQs.push({
+    q: `¿Cuántas mesas tienen la comanda COMPLETA?`,
+    a: String(completas.length),
+  });
+
+  // Tipo C: ¿qué mesa está incompleta?
+  const incompletas = finalState.filter((t) => !t.courses.every((c) => c.served));
+  if (incompletas.length > 0) {
+    allQs.push({
+      q: `¿Qué mesa está INCOMPLETA?`,
+      a: incompletas.map((t) => String(t.table)).join(", "),
+    });
+  }
+
+  // Tipo D: ¿cuál fue el último plato que salió?
+  if (events.length > 0) {
+    const last = events[events.length - 1];
+    allQs.push({
+      q: `¿Cuál fue el ÚLTIMO plato que salió?`,
+      a: `${last.dish} (mesa ${last.table})`,
+    });
+  }
+
+  // Tipo E: ¿cuántos platos salieron en total?
+  allQs.push({
+    q: `¿Cuántos platos salieron en total?`,
+    a: String(events.length),
+  });
+
+  // Seleccionar 4-5 preguntas
+  const questionCount = difficulty === 1 ? 4 : 5;
+  const questions = [...allQs].sort(() => Math.random() - 0.5).slice(0, questionCount);
+
+  return {
+    id: crypto.randomUUID(),
+    type: "kitchen_comanda",
+    prompt: "Vas a ver el estado inicial, luego una secuencia de platos que salen. Al final respondés.",
+    skill: "multitask",
+    difficulty,
+    initialState,
+    events,
+    questions,
+    studyDurationMs: studySeconds * 1000,
+    eventsDurationMs: Math.round(events.length * eventSecondsEach * 1000),
+    validate: (input) => ({
+      correct: false,
+      expected: "",
+      userAnswer: input,
+    }),
+  };
+}
+
 // ============ SESIONES POR DÍA ============
 
 export interface SessionPlan {
-  day: "lunes" | "martes" | "miercoles" | "jueves" | "viernes";
+  day: "lunes" | "martes" | "miercoles" | "jueves" | "viernes" | "sabado";
   title: string;
   subtitle: string;
   focus: string;
@@ -768,13 +1154,35 @@ export const SESSIONS: Record<SessionPlan["day"], SessionPlan> = {
     durationMin: 10,
     exercises: () => Array.from({ length: 20 }, () => genSpeedExercise()),
   },
+  sabado: {
+    day: "sabado",
+    title: "Cocina aplicada",
+    subtitle: "Menú + comensales + comandas en cocina",
+    focus: "Memoria semántica + working memory bajo presión. Progresión fácil→difícil en cada bloque.",
+    durationMin: 12,
+    exercises: () => [
+      // Bloque 1: menú (progresivo)
+      genMenuStudy(1),
+      genMenuStudy(2),
+      genMenuStudy(3),
+      // Bloque 2: comensales (progresivo)
+      genCustomerOrders(1),
+      genCustomerOrders(2),
+      genCustomerOrders(3),
+      // Bloque 3: comandas de cocina (progresivo)
+      genKitchenComanda(1),
+      genKitchenComanda(2),
+      genKitchenComanda(3),
+    ],
+  },
 };
 
-export const DAY_ORDER: SessionPlan["day"][] = ["lunes", "martes", "miercoles", "jueves", "viernes"];
+export const DAY_ORDER: SessionPlan["day"][] = ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado"];
 
 // Dado un Date, devuelve el día de la sesión correspondiente
 export function getTodaySession(): SessionPlan["day"] {
   const dayIdx = (new Date().getDay() + 6) % 7; // lunes=0, domingo=6
-  if (dayIdx >= 5) return "lunes"; // fin de semana → lunes
+  if (dayIdx === 5) return "sabado"; // sábado → cocina aplicada
+  if (dayIdx === 6) return "lunes";  // domingo → lunes
   return DAY_ORDER[dayIdx];
 }

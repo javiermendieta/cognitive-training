@@ -10,8 +10,11 @@ import {
   type BaseExercise,
   type RetentionExercise,
   type MultitaskScenario,
+  type MenuStudyExercise,
+  type CustomerOrdersExercise,
+  type KitchenComandaExercise,
 } from "@/lib/cognitive-engine";
-import { ExerciseRunner, RetentionRunner, MultitaskRunner } from "./ExerciseRunner";
+import { ExerciseRunner, RetentionRunner, MultitaskRunner, MenuStudyRunner, CustomerOrdersRunner, KitchenComandaRunner } from "./ExerciseRunner";
 import { saveSession, type SessionRecord, type ExerciseResult } from "@/lib/cognitive-storage";
 
 interface Props {
@@ -115,6 +118,9 @@ export function SessionPanel({ day, onExit, onComplete }: Props) {
   const current = exercises[currentIndex];
   const isRetention = current.type === "retention";
   const isMultitask = current.type === "multitask";
+  const isMenuStudy = current.type === "menu_study";
+  const isCustomerOrders = current.type === "customer_orders";
+  const isKitchenComanda = current.type === "kitchen_comanda";
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-6">
@@ -149,6 +155,21 @@ export function SessionPanel({ day, onExit, onComplete }: Props) {
       ) : isMultitask ? (
         <MultitaskRunner
           exercise={current as MultitaskScenario}
+          onDone={recordMultiResult}
+        />
+      ) : isMenuStudy ? (
+        <MenuStudyRunner
+          exercise={current as MenuStudyExercise}
+          onDone={recordMultiResult}
+        />
+      ) : isCustomerOrders ? (
+        <CustomerOrdersRunner
+          exercise={current as CustomerOrdersExercise}
+          onDone={recordMultiResult}
+        />
+      ) : isKitchenComanda ? (
+        <KitchenComandaRunner
+          exercise={current as KitchenComandaExercise}
           onDone={recordMultiResult}
         />
       ) : (
