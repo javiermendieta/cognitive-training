@@ -54,29 +54,48 @@ export function genSum3Digits(): BaseExercise {
 // 2. Cadena de operaciones (5 pasos)
 export function genOpChain(): BaseExercise {
   let current = rand(5, 20);
-  const steps: string[] = [String(current)];
   const ops = ["+", "-", "×", "÷"];
   let display = String(current);
 
   for (let i = 0; i < 4; i++) {
-    const op = pick(ops);
+    let op = pick(ops);
     let next: number;
-    if (op === "+") {
+
+    if (op === "÷") {
+      // Buscar divisores de current que den entero >= 1
+      const divisors = [2, 3, 4, 5, 6, 7, 8, 9].filter(
+        (d) => current % d === 0 && current / d >= 1
+      );
+      if (divisors.length === 0) {
+        // No hay divisor válido, cambiar a multiplicación
+        op = "×";
+        next = rand(2, 9);
+        current *= next;
+      } else {
+        next = pick(divisors);
+        current = current / next; // división exacta, sin redondeo
+      }
+    } else if (op === "+") {
       next = rand(2, 15);
       current += next;
     } else if (op === "-") {
-      next = rand(2, Math.min(15, current - 1));
-      current -= next;
+      // Evitar negativos: límite inferior es 2, y current - next >= 1
+      const maxSub = Math.min(15, current - 1);
+      if (maxSub < 2) {
+        // current muy chico, cambiar a suma
+        op = "+";
+        next = rand(2, 15);
+        current += next;
+      } else {
+        next = rand(2, maxSub);
+        current -= next;
+      }
     } else if (op === "×") {
       next = rand(2, 9);
       current *= next;
-    } else {
-      // división que dé entero
-      next = rand(2, 9);
-      current = Math.round(current / next);
     }
+
     display += ` ${op} ${next}`;
-    steps.push(`${op} ${next}`);
   }
 
   const final = current;
