@@ -13,6 +13,7 @@ import type {
   CustomerOrdersExercise,
   KitchenComandaExercise,
 } from "@/lib/cognitive-engine";
+import { smartMatch } from "@/lib/cognitive-engine";
 
 interface Props {
   exercise: BaseExercise;
@@ -248,12 +249,7 @@ export function RetentionRunner({ exercise, onDone }: {
     setPhase("questions");
   };
 
-  const check = (ans: string, expected: string): boolean => {
-    const a = ans.trim().toLowerCase();
-    const e = expected.toLowerCase();
-    if (a.length < 2) return false;
-    return a.includes(e.slice(0, Math.min(4, e.length))) || e.includes(a.slice(0, Math.min(4, a.length)));
-  };
+  const check = (ans: string, expected: string): boolean => smartMatch(ans, expected);
 
   const finish = () => {
     setRevealed(true);
@@ -355,12 +351,7 @@ export function MultitaskRunner({ exercise, onDone }: {
     setPhase("questions");
   };
 
-  const check = (ans: string, expected: string): boolean => {
-    const a = ans.trim().toLowerCase();
-    const e = expected.toLowerCase();
-    if (a.length < 2) return false;
-    return a.includes(e.slice(0, Math.min(4, e.length))) || e.includes(a.slice(0, Math.min(4, a.length)));
-  };
+  const check = (ans: string, expected: string): boolean => smartMatch(ans, expected);
 
   const finish = () => {
     setRevealed(true);
@@ -479,17 +470,7 @@ export function MenuStudyRunner({ exercise, onDone }: {
     setPhase("questions");
   };
 
-  const check = (ans: string, expected: string): boolean => {
-    const a = ans.trim().toLowerCase();
-    const e = expected.toLowerCase();
-    if (a.length < 2) return false;
-    const aNum = parseInt(a.replace(/[^\d]/g, ""));
-    const eNum = parseInt(e.replace(/[^\d]/g, ""));
-    if (!isNaN(aNum) && !isNaN(eNum) && eNum > 0) {
-      return aNum === eNum;
-    }
-    return a.includes(e.slice(0, Math.min(5, e.length))) || e.includes(a.slice(0, Math.min(5, a.length)));
-  };
+  const check = (ans: string, expected: string): boolean => smartMatch(ans, expected);
 
   if (phase === "study") {
     const seconds = Math.ceil(timeLeft / 1000);
@@ -631,12 +612,7 @@ export function CustomerOrdersRunner({ exercise, onDone }: {
     setPhase("questions");
   };
 
-  const check = (ans: string, expected: string): boolean => {
-    const a = ans.trim().toLowerCase();
-    const e = expected.toLowerCase();
-    if (a.length < 2) return false;
-    return a.includes(e.slice(0, Math.min(5, e.length))) || e.includes(a.slice(0, Math.min(5, a.length)));
-  };
+  const check = (ans: string, expected: string): boolean => smartMatch(ans, expected);
 
   if (phase === "study") {
     const seconds = Math.ceil(timeLeft / 1000);
@@ -800,20 +776,7 @@ export function KitchenComandaRunner({ exercise, onDone }: {
     setEventsShown(0);
   };
 
-  const check = (ans: string, expected: string): boolean => {
-    const a = ans.trim().toLowerCase();
-    const e = expected.toLowerCase();
-    if (a.length < 2) return false;
-    const aNum = parseInt(a.replace(/[^\d]/g, ""));
-    const eNum = parseInt(e.replace(/[^\d]/g, ""));
-    if (!isNaN(aNum) && !isNaN(eNum) && /^\d+$/.test(e.trim())) {
-      return aNum === eNum;
-    }
-    if (e.startsWith("sí") || e.startsWith("si")) {
-      return ["si", "sí", "yes", "completa", "completo"].some((k) => a.startsWith(k));
-    }
-    return a.includes(e.slice(0, Math.min(5, e.length))) || e.includes(a.slice(0, Math.min(5, a.length)));
-  };
+  const check = (ans: string, expected: string): boolean => smartMatch(ans, expected);
 
   // ---- FASE 1: ESTUDIO ----
   if (phase === "study") {

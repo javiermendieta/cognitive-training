@@ -14,6 +14,190 @@ export function formatARS(n: number): string {
   return "$" + Math.round(n).toLocaleString("es-AR");
 }
 
+// ============ VALIDACIÓN DE RESPUESTAS (smart matching) ============
+// Normaliza texto: minúsculas, sin acentos, sin puntuación, espacios colapsados.
+// Pensado para comparar respuestas del usuario contra la respuesta esperada
+// tolerando variantes de tipeo en español (AR).
+export function normalizeText(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // quita diacríticos (acentos, tildes)
+    .replace(/[.$,;:!?¡¿"'`´()]/g, " ") // puntuación → espacio
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Parsea un literal numérico tipo "3.500" (miles AR), "42,3" (decimal),
+// "4.500,50" (mixto AR) o "3500" a number.
+function parseNumLiteral(m: string): number {
+  const dots = (m.match(/\./g) || []).length;
+  const commas = (m.match(/,/g) || []).length;
+  if (dots === 0 && commas === 0) return parseInt(m, 10);
+  if (commas > 0 && dots === 0) {
+    const parts = m.split(",");
+    if (parts.length === 2 && parts[1].length <= 2) {
+      return parseFloat(parts[0] + "." + parts[1]);
+    }
+    return parseInt(m.replace(/,/g, ""), 10);
+  }
+  if (dots > 0 && commas === 0) {
+    const parts = m.split(".");
+    if (parts.length === 2 && parts[1].length <= 2) {
+      return parseFloat(m);
+    }
+    return parseInt(m.replace(/\./g, ""), 10);
+  }
+  // Ambos: asumimos formato AR (punto=miles, coma=decimal)
+  return parseFloat(m.replace(/\./g, "").replace(",", "."));
+}
+
+// Extrae números de un texto, respetando sufijos de magnitud
+// ("millones", "mil", "m", "k"). Devuelve el valor numérico real.
+export function extractNumbers(s: string): number[] {
+  const lower = s.toLowerCase();
+  const regex = /(\d[\d.,]*\d|\d)\s*(millones?|mill[oó]n|millon|m\b|mil\b|k\b)?/g;
+  const matches = [...lower.matchAll(regex)];
+  return matches
+    .map((m) => {
+      const n = parseNumLiteral(m[1]);
+      const suffix = m[2];
+      if (suffix) {
+        if (suffix.startsWith("millon") || suffix === "m") return n * 1_000_000;
+        if (suffix.startsWith("mil") || suffix === "k") return n * 1_000;
+      }
+      return n;
+    })
+    .filter((n) => !isNaN(n));
+}
+
+const YES_WORDS = [
+  "si", "sip", "yes", "s", "verdad", "verdadero", "true", "aplica",
+  "completa", "completo", "cierto", "ok", "vale",
+];
+const NO_WORDS = [
+  "no", "nop", "false", "falso", "falsa",
+  "incompleta", "incompleto", "falta", "nada",
+];
+
+// Divide una respuesta en tokens usando separadores de lista (+, " y ", coma).
+// IMPORTANTE: se hace sobre el string ORIGINAL (pre-normalización) para no perder
+// las comas. Se evita splitear comas que son separador decimal (seguidas de dígito).
+function splitTokens(s: string): string[] {
+  return s
+    .split(/\s*\+\s*|\s+y\s+|,\s*(?=[a-zA-Z])/i)
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 3);
+}
+
+// Detecta si una respuesta es "puramente numérica": un número con formatos
+// opcionales ($, ".", ",", "millones", "mil", "pesos"). Si es así, el match
+// numérico por sí solo basta para considerarla correcta.
+function isPureNumeric(s: string): boolean {
+  const cleaned = s
+    .toLowerCase()
+    .replace(/millones?|mill[oó]n|millon|mil|pesos|argentinos?|ars|\$|\.|,/g, "")
+    .replace(/\s+/g, "")
+    .trim();
+  return /^\d+$/.test(cleaned) && cleaned.length > 0;
+}
+
+// Comparador tolerante de respuestas.
+// 1. Igualdad exacta (post-normalización)
+// 2. Detección de Sí/No por palabras clave
+// 3. Listas: si la respuesta esperada tiene varios tokens (separados por +, coma, " y "),
+//    TODOS deben aparecer en la respuesta del usuario
+// 4. Numérico: comparación estricta para <1M, tolerancia 0.1% para millones
+// 5. Substring (uno contiene al otro) + token-level matching
+export function smartMatch(userAnswer: string, expected: string): boolean {
+  const a = normalizeText(userAnswer);
+  const e = normalizeText(expected);
+  if (!a) return false;
+  if (a === e) return true;
+
+  // --- Sí/No (palabras clave) ---
+  const eWordsArr = e.split(/\s+/);
+  const aWordsArr = a.split(/\s+/);
+  const isEYes = eWordsArr.some((w) => YES_WORDS.includes(w));
+  const isENo = eWordsArr.some((w) => NO_WORDS.includes(w));
+  if (isEYes && !isENo) {
+    const isAYes = aWordsArr.some((w) => YES_WORDS.includes(w));
+    const isANo = aWordsArr.some((w) => NO_WORDS.includes(w));
+    return isAYes && !isANo;
+  }
+  if (isENo && !isEYes) {
+    const isAYes = aWordsArr.some((w) => YES_WORDS.includes(w));
+    const isANo = aWordsArr.some((w) => NO_WORDS.includes(w));
+    return isANo && !isAYes;
+  }
+
+  // --- Listas (multi-token, sobre string original) ---
+  const eTokensRaw = splitTokens(expected);
+  if (eTokensRaw.length > 1) {
+    const aTokensRaw = splitTokens(userAnswer);
+    return eTokensRaw.every((eTokRaw) => {
+      const eTokNorm = normalizeText(eTokRaw);
+      const eSlice = eTokNorm.slice(0, Math.min(5, eTokNorm.length));
+      if (a.includes(eSlice)) return true;
+      return aTokensRaw.some((aTokRaw) => {
+        const aTok = normalizeText(aTokRaw);
+        const aSlice = aTok.slice(0, Math.min(5, aTok.length));
+        return aTok.includes(eSlice) || eTokNorm.includes(aSlice);
+      });
+    });
+  }
+
+  // --- Numérico ---
+  const aNums = extractNumbers(userAnswer);
+  const eNums = extractNumbers(expected);
+  if (eNums.length > 0 && aNums.length > 0) {
+    const numClose = (x: number, y: number): boolean => {
+      if (x === y) return true;
+      const diff = Math.abs(x - y);
+      const absMax = Math.max(Math.abs(x), Math.abs(y), 1);
+      const ratio = diff / absMax;
+      // Para números < 1M, exigir match exacto (precios, cantidades, años)
+      if (absMax < 1_000_000) return false;
+      // Para millones, permitir 0.1% de tolerancia
+      return ratio < 0.001;
+    };
+    if (aNums.length === eNums.length) {
+      const allMatch = eNums.every((eNum, i) => numClose(aNums[i], eNum));
+      if (!allMatch) return false; // algún número no coincide → rechazar
+      // Si la respuesta es puramente numérica (número + sufijos), el match numérico basta
+      if (isPureNumeric(expected) || isPureNumeric(userAnswer)) {
+        return true;
+      }
+      // Si hay texto sustancial en ambos, caer al check de texto abajo
+    } else {
+      // Diferente cantidad de números → todos los del expected deben estar en el user
+      const allPresent = eNums.every((eNum) =>
+        aNums.some((aNum) => numClose(aNum, eNum))
+      );
+      if (!allPresent) return false;
+      // Si todos están presentes y la respuesta es puramente numérica, aceptar
+      if (isPureNumeric(expected) || isPureNumeric(userAnswer)) {
+        return true;
+      }
+    }
+  }
+
+  // --- Substring (uno contiene al otro, post-normalización) ---
+  if (a.includes(e) || e.includes(a)) return true;
+
+  // --- Token-level: cada palabra del user debe aparecer en el expected ---
+  const aWordList = a.split(/\s+/).filter((w) => w.length >= 2);
+  const eWordList = e.split(/\s+/).filter((w) => w.length >= 2);
+  if (aWordList.length > 0 && eWordList.length > 0) {
+    const allUserWordsMatch = aWordList.every((aw) =>
+      eWordList.some((ew) => ew.includes(aw) || aw.includes(ew))
+    );
+    if (allUserWordsMatch) return true;
+  }
+
+  return false;
+}
+
 // Máximo común divisor (para simplificar fracciones)
 function gcd(a: number, b: number): number {
   a = Math.abs(a);
@@ -401,13 +585,7 @@ export function genNames(): BaseExercise {
       durationMs: count * 1800, // 1.8s por nombre
     },
     validate: (input) => {
-      const cleaned = input.trim().toLowerCase();
-      const exp = expected.toLowerCase();
-      // Match exacto, o que el input contenga las primeras 4 letras del esperado (o viceversa)
-      const ok =
-        cleaned === exp ||
-        (cleaned.length >= 3 && exp.includes(cleaned.slice(0, Math.min(4, cleaned.length)))) ||
-        (exp.length >= 3 && cleaned.includes(exp.slice(0, Math.min(4, exp.length))));
+      const ok = smartMatch(input, expected);
       return {
         correct: ok,
         expected,
@@ -445,12 +623,7 @@ export function genFaces(): BaseExercise {
     timedImages: faces,
     timedDurationMs: count * 2800, // 2.8s por rostro
     validate: (input) => {
-      const cleaned = input.trim().toLowerCase();
-      const exp = expected.toLowerCase();
-      const ok =
-        cleaned === exp ||
-        (cleaned.length >= 3 && exp.includes(cleaned.slice(0, Math.min(4, cleaned.length)))) ||
-        (exp.length >= 3 && cleaned.includes(exp.slice(0, Math.min(4, exp.length))));
+      const ok = smartMatch(input, expected);
       return {
         correct: ok,
         expected,
@@ -614,10 +787,9 @@ export function genBoundary(): BaseExercise {
     skill: "semantic",
     difficulty: 1,
     validate: (input) => {
-      const cleaned = input.trim().toLowerCase();
-      const isYes = ["si", "sí", "yes", "s", "aplica", "true", "1"].includes(cleaned);
+      const ok = smartMatch(input, caso.correcta ? "Sí" : "No");
       return {
-        correct: isYes === caso.correcta,
+        correct: ok,
         expected: caso.correcta ? "SÍ" : "NO",
         userAnswer: input,
       };

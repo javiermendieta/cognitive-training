@@ -3,11 +3,14 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft, Dumbbell, Layers, ChevronRight } from "lucide-react";
+import { ArrowLeft, Dumbbell, Layers, ChevronRight, Clock } from "lucide-react";
 import {
   EXERCISE_CATALOG,
   generateCustomSet,
   type BaseExercise,
+  type MenuStudyExercise,
+  type CustomerOrdersExercise,
+  type KitchenComandaExercise,
 } from "@/lib/cognitive-engine";
 import { FreeSessionRunner } from "./FreeSessionRunner";
 
@@ -17,10 +20,75 @@ interface Props {
 
 type Difficulty = 1 | 2 | 3;
 
+// Tipos de ejercicio que tienen fase de memorización
+// (algo se muestra X segundos y después se oculta para preguntar).
+const TIMED_TYPES = new Set([
+  "menu_study",
+  "customer_orders",
+  "kitchen_comanda",
+  "nback",
+  "names",
+  "faces",
+]);
+
+// Opciones de tiempo de memorización (segundos). null = "auto según nivel".
+const MEMORIZE_TIME_OPTIONS: { value: number | null; label: string }[] = [
+  { value: null, label: "Auto" },
+  { value: 5, label: "5s" },
+  { value: 10, label: "10s" },
+  { value: 15, label: "15s" },
+  { value: 20, label: "20s" },
+  { value: 30, label: "30s" },
+  { value: 45, label: "45s" },
+  { value: 60, label: "60s" },
+  { value: 90, label: "90s" },
+];
+
+// Opciones de tiempo por evento en comanda de cocina (segundos por evento).
+const EVENT_TIME_OPTIONS: { value: number | null; label: string }[] = [
+  { value: null, label: "Auto" },
+  { value: 2, label: "2s" },
+  { value: 3, label: "3s" },
+  { value: 4, label: "4s" },
+  { value: 5, label: "5s" },
+  { value: 7, label: "7s" },
+  { value: 10, label: "10s" },
+];
+
+// Aplica el override de tiempo de memorización a un ejercicio generado.
+function applyMemorizeOverride(ex: BaseExercise, memorizeSec: number | null): BaseExercise {
+  if (memorizeSec === null) return ex;
+  const ms = memorizeSec * 1000;
+  if (ex.type === "menu_study" || ex.type === "customer_orders" || ex.type === "kitchen_comanda") {
+    return { ...ex, studyDurationMs: ms } as BaseExercise;
+  }
+  if (ex.timedDisplay) {
+    return { ...ex, timedDisplay: { ...ex.timedDisplay, durationMs: ms } };
+  }
+  if (ex.timedImages) {
+    return { ...ex, timedDurationMs: ms };
+  }
+  return ex;
+}
+
+// Aplica el override de tiempo por evento a una comanda de cocina.
+function applyEventTimeOverride(
+  ex: BaseExercise,
+  eventSec: number | null
+): BaseExercise {
+  if (eventSec === null) return ex;
+  if (ex.type !== "kitchen_comanda") return ex;
+  const kc = ex as KitchenComandaExercise;
+  const total = Math.round(kc.events.length * eventSec * 1000);
+  return { ...kc, eventsDurationMs: total } as BaseExercise;
+}
+
 export function FreeModePanel({ onExit }: Props) {
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [difficulty, setDifficulty] = useState<Difficulty>(1);
   const [count, setCount] = useState<number>(5);
+  const [memorizeSec, setMemorizeSec] = useState<number | null>(null);
+  const [eventSec, setEventSec] = useState<number | null>(null);
   const [running, setRunning] = useState(false);
   const [exercises, setExercises] = useState<BaseExercise[]>([]);
 
@@ -33,7 +101,14 @@ export function FreeModePanel({ onExit }: Props) {
 
   const start = () => {
     if (!selectedType) return;
-    const set = generateCustomSet(selectedType, difficulty, count);
+    let set = generateCustomSet(selectedType, difficulty, count);
+    // Aplicar overrides de tiempo si el ejercicio tiene fase de memorización
+    if (TIMED_TYPES.has(selectedType)) {
+      set = set.map((ex) => applyMemorizeOverride(ex, memorizeSec));
+      if (selectedType === "kitchen_comanda") {
+        set = set.map((ex) => applyEventTimeOverride(ex, eventSec));
+      }
+    }
     setExercises(set);
     setRunning(true);
   };
@@ -52,6 +127,8 @@ export function FreeModePanel({ onExit }: Props) {
   }
 
   const selectedEntry = EXERCISE_CATALOG.find((e) => e.type === selectedType);
+  const hasMemorizeTime = selectedEntry ? TIMED_TYPES.has(selectedEntry.type) : false;
+  const hasEventTime = selectedEntry?.type === "kitchen_comanda";
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
@@ -71,8 +148,8 @@ export function FreeModePanel({ onExit }: Props) {
           Elegí qué entrenar
         </h1>
         <p className="text-base text-muted-foreground">
-          Seleccioná un tipo de ejercicio. Después elegí nivel y cantidad.
-          No se guarda en el historial oficial, es pura práctica.
+          Seleccioná un tipo de ejercicio. Después elegí nivel, cantidad y (si aplica)
+          el tiempo de memorización. No se guarda en el historial oficial, es pura práctica.
         </p>
       </div>
 
@@ -87,6 +164,7 @@ export function FreeModePanel({ onExit }: Props) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               {entries.map((entry) => {
                 const isSelected = selectedType === entry.type;
+                const isTimed = TIMED_TYPES.has(entry.type);
                 return (
                   <Card
                     key={entry.type}
@@ -101,6 +179,11 @@ export function FreeModePanel({ onExit }: Props) {
                           <span>skill: {entry.skill}</span>
                           {entry.supportsDifficulty && (
                             <span className="text-emerald-400">· 3 niveles</span>
+                          )}
+                          {isTimed && (
+                            <span className="text-amber-400 flex items-center gap-0.5">
+                              · <Clock className="w-2.5 h-2.5" /> tiempo
+                            </span>
                           )}
                         </div>
                       </div>
@@ -176,6 +259,58 @@ export function FreeModePanel({ onExit }: Props) {
                 </div>
               </div>
             </div>
+
+            {/* Tiempo de memorización */}
+            {hasMemorizeTime && (
+              <div>
+                <div className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  Tiempo de memorización
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {MEMORIZE_TIME_OPTIONS.map((opt) => (
+                    <Button
+                      key={opt.label}
+                      size="sm"
+                      variant={memorizeSec === opt.value ? "default" : "outline"}
+                      onClick={() => setMemorizeSec(opt.value)}
+                      className="h-9 px-3"
+                    >
+                      {opt.label}
+                    </Button>
+                  ))}
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-1.5 italic">
+                  Tiempo que ves las cards/la secuencia antes de que se oculten y pregunten.
+                </div>
+              </div>
+            )}
+
+            {/* Tiempo por evento (solo comanda) */}
+            {hasEventTime && (
+              <div>
+                <div className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  Tiempo por comanda cantada
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {EVENT_TIME_OPTIONS.map((opt) => (
+                    <Button
+                      key={opt.label}
+                      size="sm"
+                      variant={eventSec === opt.value ? "default" : "outline"}
+                      onClick={() => setEventSec(opt.value)}
+                      className="h-9 px-3"
+                    >
+                      {opt.label}
+                    </Button>
+                  ))}
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-1.5 italic">
+                  Cuánto se muestra cada &quot;SALE Mesa X&quot; en la fase de eventos.
+                </div>
+              </div>
+            )}
 
             <Button
               size="lg"
