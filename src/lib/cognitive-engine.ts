@@ -14,8 +14,23 @@ export function formatARS(n: number): string {
   return "$" + Math.round(n).toLocaleString("es-AR");
 }
 
+// Máximo común divisor (para simplificar fracciones)
+function gcd(a: number, b: number): number {
+  a = Math.abs(a);
+  b = Math.abs(b);
+  while (b) {
+    [a, b] = [b, a % b];
+  }
+  return a || 1;
+}
+
 // ============ TIPOS ============
 export type ExerciseStatus = "pending" | "active" | "done" | "skipped";
+
+export interface TimedImage {
+  url: string;
+  label: string;
+}
 
 export interface BaseExercise {
   id: string;
@@ -26,6 +41,12 @@ export interface BaseExercise {
   // Metadata para análisis
   skill: "buffer" | "calc" | "retention" | "multitask" | "speed" | "semantic";
   difficulty: 1 | 2 | 3;
+  // Para ejercicios con timer: mostrar contenido X segundos y ocultar
+  // antes de mostrar el prompt y pedir la respuesta.
+  // Esto evita que el usuario "espíe" la secuencia al responder.
+  timedDisplay?: { content: string; durationMs: number };
+  timedImages?: TimedImage[];
+  timedDurationMs?: number;
 }
 
 // ============ LUNES: BUFFER DE TRABAJO ============
@@ -51,47 +72,64 @@ export function genSum3Digits(): BaseExercise {
   };
 }
 
-// 2. Cadena de operaciones (5 pasos)
+// 2. Cadena de operaciones (5 pasos) con dificultad progresiva
+// Las primeras operaciones son más fáciles, las últimas más difíciles
+// Las divisiones siempre son exactas (buscamos divisor válido)
 export function genOpChain(): BaseExercise {
-  let current = rand(5, 20);
-  const ops = ["+", "-", "×", "÷"];
+  // Dificultad creciente: empezamos con números chicos y operaciones simples,
+  // vamos subiendo. Paso 1-2: +,- con chicos. Paso 3-4: ×,÷. Paso 5: mix.
+  let current = rand(8, 25);
   let display = String(current);
 
-  for (let i = 0; i < 4; i++) {
+  // Tres niveles de dificultad para los operandos
+  const diffRanges = [
+    { addMax: 12, subMax: 10, multMax: 6, divMax: 5 }, // paso 1
+    { addMax: 15, subMax: 12, multMax: 7, divMax: 7 }, // paso 2
+    { addMax: 18, subMax: 15, multMax: 8, divMax: 9 }, // paso 3
+    { addMax: 20, subMax: 18, multMax: 9, divMax: 9 }, // paso 4
+    { addMax: 25, subMax: 20, multMax: 9, divMax: 9 }, // paso 5
+  ];
+
+  for (let step = 0; step < 5; step++) {
+    const dr = diffRanges[step];
+    // Operaciones posibles según dificultad del paso
+    const ops = step < 2 ? ["+", "-"] : step < 4 ? ["+", "-", "×", "÷"] : ["+", "-", "×", "÷", "÷"];
     let op = pick(ops);
-    let next: number;
+    let next = 0;
 
     if (op === "÷") {
       // Buscar divisores de current que den entero >= 1
-      const divisors = [2, 3, 4, 5, 6, 7, 8, 9].filter(
-        (d) => current % d === 0 && current / d >= 1
-      );
+      const maxDiv = Math.min(dr.divMax, current);
+      const divisors: number[] = [];
+      for (let d = 2; d <= maxDiv; d++) {
+        if (current % d === 0 && current / d >= 1) divisors.push(d);
+      }
       if (divisors.length === 0) {
         // No hay divisor válido, cambiar a multiplicación
         op = "×";
-        next = rand(2, 9);
+        next = rand(2, dr.multMax);
         current *= next;
       } else {
         next = pick(divisors);
         current = current / next; // división exacta, sin redondeo
       }
     } else if (op === "+") {
-      next = rand(2, 15);
+      next = rand(2, dr.addMax);
       current += next;
     } else if (op === "-") {
-      // Evitar negativos: límite inferior es 2, y current - next >= 1
-      const maxSub = Math.min(15, current - 1);
+      // Evitar negativos o current muy chico
+      const maxSub = Math.min(dr.subMax, current - 1);
       if (maxSub < 2) {
         // current muy chico, cambiar a suma
         op = "+";
-        next = rand(2, 15);
+        next = rand(2, dr.addMax);
         current += next;
       } else {
         next = rand(2, maxSub);
         current -= next;
       }
     } else if (op === "×") {
-      next = rand(2, 9);
+      next = rand(2, dr.multMax);
       current *= next;
     }
 
@@ -116,23 +154,46 @@ export function genOpChain(): BaseExercise {
   };
 }
 
-// 3. N-back visual (recordar secuencia)
+// 3. N-back visual (recordar secuencia con timer)
+// La secuencia se muestra X segundos y desaparece antes de preguntar
 export function genNBack(): BaseExercise {
   const length = rand(6, 9);
   const digits = Array.from({ length }, () => rand(0, 9));
-  const targetIndex = rand(0, length - 3);
-  const targetDigit = digits[targetIndex];
-  const askIndex = targetIndex + 2; // 2-back
+
+  // Variantes de pregunta para evitar automatismo
+  const variant = pick(["before_last", "position_n", "after_x"]);
+  let question: string;
+  let expected: number;
+
+  if (variant === "before_last") {
+    // 2 posiciones antes del último = índice length-3
+    expected = digits[length - 3];
+    question = "¿Qué número estaba 2 posiciones antes del ÚLTIMO?";
+  } else if (variant === "position_n") {
+    // Preguntar por una posición específica
+    const pos = rand(2, length - 1); // posición 1-indexed
+    expected = digits[pos - 1];
+    question = `¿Qué número estaba en la posición ${pos}?`;
+  } else {
+    // ¿Qué venía después del número X? (X es uno de los dígitos)
+    const askIdx = rand(0, length - 2);
+    const targetDigit = digits[askIdx];
+    expected = digits[askIdx + 1];
+    question = `¿Qué número venía DESPUÉS del ${targetDigit}?`;
+  }
+
   return {
     id: crypto.randomUUID(),
     type: "nback",
-    prompt: `Secuencia: ${digits.join(" ")}\n\n¿Qué número estaba 2 posiciones antes del último?`,
+    prompt: question,
     skill: "buffer",
     difficulty: 2,
+    timedDisplay: {
+      content: digits.join("   "),
+      durationMs: length * 900, // 900ms por dígito
+    },
     validate: (input) => {
       const n = parseInt(input.trim());
-      // El último es digits[length-1], 2 antes es digits[length-3]
-      const expected = digits[length - 3];
       return {
         correct: n === expected,
         expected: String(expected),
@@ -208,6 +269,191 @@ export function genMult2(): BaseExercise {
       return {
         correct: n === result,
         expected: String(result),
+        userAnswer: input,
+      };
+    },
+  };
+}
+
+// 4. Operaciones con fracciones (siempre exactas, simplificadas)
+// Acepta respuesta como "a/b" o como decimal
+export function genFraction(): BaseExercise {
+  // Denominadores que dan fracciones manejables
+  const denominadores = [2, 3, 4, 5, 6, 8, 10, 12];
+  let d1 = pick(denominadores);
+  let d2 = pick(denominadores.filter((d) => d !== d1));
+  let n1 = rand(1, d1 - 1);
+  let n2 = rand(1, d2 - 1);
+  const op = pick(["+", "-", "×"]);
+
+  let numRes: number;
+  let denRes: number;
+
+  if (op === "+") {
+    numRes = n1 * d2 + n2 * d1;
+    denRes = d1 * d2;
+  } else if (op === "-") {
+    // Asegurar que el resultado sea positivo: n1/d1 > n2/d2  =>  n1*d2 > n2*d1
+    if (n1 * d2 <= n2 * d1) {
+      // swap
+      [n1, n2] = [n2, n1];
+      [d1, d2] = [d2, d1];
+    }
+    numRes = n1 * d2 - n2 * d1;
+    denRes = d1 * d2;
+  } else {
+    // multiplicación
+    numRes = n1 * n2;
+    denRes = d1 * d2;
+  }
+
+  // Simplificar
+  const g = gcd(numRes, denRes);
+  numRes /= g;
+  denRes /= g;
+
+  // Si el denominador es 1, el resultado es entero
+  const expected = denRes === 1 ? String(numRes) : `${numRes}/${denRes}`;
+  const expectedVal = numRes / denRes;
+
+  return {
+    id: crypto.randomUUID(),
+    type: "fraction",
+    prompt: `${n1}/${d1} ${op} ${n2}/${d2} = ?`,
+    skill: "calc",
+    difficulty: 3,
+    validate: (input) => {
+      const cleaned = input.trim().replace(/\s/g, "").replace(",", ".");
+      let userVal: number | null = null;
+      if (cleaned.includes("/")) {
+        const parts = cleaned.split("/");
+        if (parts.length === 2) {
+          const a = parseFloat(parts[0]);
+          const b = parseFloat(parts[1]);
+          if (!isNaN(a) && !isNaN(b) && b !== 0) userVal = a / b;
+        }
+      } else {
+        const v = parseFloat(cleaned);
+        if (!isNaN(v)) userVal = v;
+      }
+      const ok = userVal !== null && Math.abs(userVal - expectedVal) < 0.005;
+      return {
+        correct: ok,
+        expected,
+        userAnswer: input,
+      };
+    },
+  };
+}
+
+// ============ MEMORIA DE NOMBRES Y ROSTROS ============
+
+const NOMBRES = [
+  "María", "Juan", "Lucía", "Pedro", "Ana", "Carlos", "Sofía", "Diego",
+  "Elena", "Pablo", "Carmen", "Mateo", "Valeria", "Tomás", "Renata", "Bruno",
+  "Florencia", "Joaquín", "Dolores", "Nicolás", "Catalina", "Emilio",
+  "Mercedes", "Ramiro", "Pilar", "Santiago", "Inés", "Federico", "Cecilia",
+  "Augusto", "Manuela", "Vincente", "Josefina", "Bautista", "Antonia",
+];
+
+// Memoria de nombres: muestra una lista de nombres por X segundos, los oculta,
+// y pregunta por uno de ellos (posición, antes, después, etc.)
+export function genNames(): BaseExercise {
+  const count = rand(4, 6);
+  const shuffled = [...NOMBRES].sort(() => Math.random() - 0.5).slice(0, count);
+
+  // Variantes de pregunta
+  const variant = pick(["position", "after", "before", "first_last"]);
+  let question: string;
+  let expected: string;
+
+  if (variant === "position") {
+    const pos = rand(1, count);
+    expected = shuffled[pos - 1];
+    question = `¿Qué nombre estaba en la posición ${pos}?`;
+  } else if (variant === "after" && count > 1) {
+    const idx = rand(0, count - 2);
+    expected = shuffled[idx + 1];
+    question = `¿Qué nombre venía DESPUÉS de ${shuffled[idx]}?`;
+  } else if (variant === "before" && count > 1) {
+    const idx = rand(1, count - 1);
+    expected = shuffled[idx - 1];
+    question = `¿Qué nombre venía ANTES de ${shuffled[idx]}?`;
+  } else {
+    // first/last
+    if (Math.random() < 0.5) {
+      expected = shuffled[0];
+      question = `¿Cuál era el PRIMER nombre de la lista?`;
+    } else {
+      expected = shuffled[count - 1];
+      question = `¿Cuál era el ÚLTIMO nombre de la lista?`;
+    }
+  }
+
+  return {
+    id: crypto.randomUUID(),
+    type: "names",
+    prompt: question,
+    skill: "retention",
+    difficulty: 2,
+    timedDisplay: {
+      content: shuffled.map((n, i) => `${i + 1}. ${n}`).join("\n"),
+      durationMs: count * 1800, // 1.8s por nombre
+    },
+    validate: (input) => {
+      const cleaned = input.trim().toLowerCase();
+      const exp = expected.toLowerCase();
+      // Match exacto, o que el input contenga las primeras 4 letras del esperado (o viceversa)
+      const ok =
+        cleaned === exp ||
+        (cleaned.length >= 3 && exp.includes(cleaned.slice(0, Math.min(4, cleaned.length)))) ||
+        (exp.length >= 3 && cleaned.includes(exp.slice(0, Math.min(4, exp.length))));
+      return {
+        correct: ok,
+        expected,
+        userAnswer: input,
+      };
+    },
+  };
+}
+
+// Memoria de rostros: muestra fotos con nombres por X segundos, los oculta,
+// y pregunta el nombre de uno de ellos. Usa pravatar.cc (70 imágenes gratuitas).
+export function genFaces(): BaseExercise {
+  const count = rand(3, 4);
+  // pravatar.cc tiene imágenes indexadas 1-70
+  const indices = Array.from({ length: 70 }, (_, i) => i + 1);
+  const selectedIdx = indices.sort(() => Math.random() - 0.5).slice(0, count);
+  const selectedNames = [...NOMBRES].sort(() => Math.random() - 0.5).slice(0, count);
+
+  const faces: TimedImage[] = selectedIdx.map((idx, i) => ({
+    url: `https://i.pravatar.cc/200?img=${idx}`,
+    label: selectedNames[i],
+  }));
+
+  // Preguntar por una posición específica
+  const askIdx = rand(0, count - 1);
+  const expected = faces[askIdx].label;
+  const question = `¿Cómo se llamaba la persona de la posición ${askIdx + 1}?`;
+
+  return {
+    id: crypto.randomUUID(),
+    type: "faces",
+    prompt: question,
+    skill: "retention",
+    difficulty: 3,
+    timedImages: faces,
+    timedDurationMs: count * 2800, // 2.8s por rostro
+    validate: (input) => {
+      const cleaned = input.trim().toLowerCase();
+      const exp = expected.toLowerCase();
+      const ok =
+        cleaned === exp ||
+        (cleaned.length >= 3 && exp.includes(cleaned.slice(0, Math.min(4, cleaned.length)))) ||
+        (exp.length >= 3 && cleaned.includes(exp.slice(0, Math.min(4, exp.length))));
+      return {
+        correct: ok,
+        expected,
         userAnswer: input,
       };
     },
@@ -467,46 +713,51 @@ export const SESSIONS: Record<SessionPlan["day"], SessionPlan> = {
   lunes: {
     day: "lunes",
     title: "Buffer de trabajo",
-    subtitle: "Suma mental + cadenas + N-back",
-    focus: "Romper el cuello de botella del buffer de 2 elementos",
+    subtitle: "Suma mental + cadenas + N-back + nombres",
+    focus: "Romper el cuello de botella del buffer de 2 elementos + memoria a corto plazo",
     durationMin: 10,
     exercises: () => [
-      genSum3Digits(), genSum3Digits(), genSum3Digits(), genSum3Digits(), genSum3Digits(),
-      genOpChain(), genOpChain(), genOpChain(), genOpChain(), genOpChain(),
+      genSum3Digits(), genSum3Digits(), genSum3Digits(),
+      genOpChain(), genOpChain(), genOpChain(),
       genNBack(), genNBack(), genNBack(),
+      genNames(), genNames(),
     ],
   },
   martes: {
     day: "martes",
     title: "Cálculo cotidiano",
-    subtitle: "Vueltos + % invertido + multiplicación",
-    focus: "PUNTO CRÍTICO: porcentaje invertido. No te saltes este día.",
+    subtitle: "Vueltos + % invertido + fracciones + multiplicación",
+    focus: "PUNTO CRÍTICO: porcentaje invertido y fracciones. No te saltes este día.",
     durationMin: 10,
     exercises: () => [
-      genVuelto(), genVuelto(), genVuelto(), genVuelto(),
+      genVuelto(), genVuelto(), genVuelto(),
       genPctInvertido(), genPctInvertido(), genPctInvertido(), genPctInvertido(),
-      genPctInvertido(), genPctInvertido(),
-      genMult2(), genMult2(), genMult2(),
+      genFraction(), genFraction(), genFraction(), genFraction(),
+      genMult2(), genMult2(),
     ],
   },
   miercoles: {
     day: "miercoles",
     title: "Retención bajo fricción",
-    subtitle: "Lectura densa → preguntas de memoria",
-    focus: "Una sola pasada. Sin anotar. Sin volver arriba.",
+    subtitle: "Lectura densa + memoria de rostros y nombres",
+    focus: "Una sola pasada. Sin anotar. Sin volver arriba. Incluye rostros.",
     durationMin: 10,
-    exercises: () => [genRetention()],
+    exercises: () => [
+      genRetention(),
+      genFaces(), genFaces(),
+      genNames(), genNames(),
+    ],
   },
   jueves: {
     day: "jueves",
     title: "Multitarea y fronteras",
-    subtitle: "Escenarios complejos + procesamiento semántico fino",
-    focus: "Fronteras (antes de / hasta / desde) y 4ta opción generada.",
+    subtitle: "Escenarios complejos + semántica fina + memoria visual",
+    focus: "Fronteras (antes de / hasta / desde) + memoria de rostros bajo carga.",
     durationMin: 10,
     exercises: () => [
       genMultitask(),
-      genBoundary(), genBoundary(), genBoundary(),
-      genBoundary(), genBoundary(), genBoundary(),
+      genBoundary(), genBoundary(), genBoundary(), genBoundary(),
+      genFaces(), genNBack(),
     ],
   },
   viernes: {

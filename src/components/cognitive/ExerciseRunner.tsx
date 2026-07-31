@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Check, X, Clock, ArrowRight, AlertTriangle } from "lucide-react";
+import { Check, X, Clock, ArrowRight, AlertTriangle, Eye, EyeOff } from "lucide-react";
 import type { BaseExercise, RetentionExercise, MultitaskScenario } from "@/lib/cognitive-engine";
 
 interface Props {
@@ -22,12 +22,56 @@ export function ExerciseRunner({ exercise, index, total, onAnswer, onNext, isLas
   const [feedback, setFeedback] = useState<{ correct: boolean; expected: string } | null>(null);
   const startTimeRef = useRef<number>(Date.now());
 
+  // Fase "display" para ejercicios con timer (n-back, names, faces)
+  // El ejercicio muestra contenido X segundos, lo oculta, y luego recién
+  // arranca el cronómetro y muestra el prompt + input.
+  const hasTimedDisplay = Boolean(exercise.timedDisplay || exercise.timedImages);
+  const [phase, setPhase] = useState<"display" | "answer">(
+    hasTimedDisplay ? "display" : "answer"
+  );
+  const totalDisplayMs =
+    exercise.timedDisplay?.durationMs ?? exercise.timedDurationMs ?? 0;
+  const [timeLeft, setTimeLeft] = useState(totalDisplayMs);
+
+  // Reset al cambiar de ejercicio
   useEffect(() => {
-    startTimeRef.current = Date.now();
     setInput("");
     setRevealed(false);
     setFeedback(null);
+    if (hasTimedDisplay) {
+      setPhase("display");
+      setTimeLeft(totalDisplayMs);
+      // No arrancar el cronómetro todavía — arranca cuando termina el display
+    } else {
+      setPhase("answer");
+      startTimeRef.current = Date.now();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exercise.id]);
+
+  // Countdown del display
+  useEffect(() => {
+    if (phase !== "display") return;
+    const start = Date.now();
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - start;
+      const left = Math.max(0, totalDisplayMs - elapsed);
+      setTimeLeft(left);
+      if (left === 0) {
+        clearInterval(interval);
+        setPhase("answer");
+        startTimeRef.current = Date.now(); // Arrancar cronómetro de respuesta ahora
+      }
+    }, 50);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, exercise.id]);
+
+  // Permitir saltear el display si el usuario ya memorizó
+  const skipDisplay = () => {
+    setPhase("answer");
+    startTimeRef.current = Date.now();
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,6 +91,66 @@ export function ExerciseRunner({ exercise, index, total, onAnswer, onNext, isLas
     onAnswer(false, timeMs, "[skip]");
   };
 
+  // ============ FASE DISPLAY (mostrar contenido con countdown) ============
+  if (phase === "display") {
+    const seconds = Math.ceil(timeLeft / 1000);
+    return (
+      <Card className="p-6 md:p-8 border-amber-500/30 bg-amber-500/5">
+        <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <Eye className="w-3 h-3" />
+            Memorizá esto
+          </span>
+          <span className="flex items-center gap-1 text-amber-400">
+            <Clock className="w-3 h-3" />
+            desaparece en {seconds}s
+          </span>
+        </div>
+
+        {exercise.timedDisplay && (
+          <div className="text-4xl md:text-6xl font-mono font-bold text-center py-10 tracking-wider whitespace-pre-wrap leading-relaxed">
+            {exercise.timedDisplay.content}
+          </div>
+        )}
+
+        {exercise.timedImages && (
+          <div className={`grid gap-4 py-4 ${exercise.timedImages.length <= 2 ? "grid-cols-2" : "grid-cols-2 md:grid-cols-4"}`}>
+            {exercise.timedImages.map((img, i) => (
+              <div key={i} className="text-center">
+                <img
+                  src={img.url}
+                  alt=""
+                  className="w-full aspect-square object-cover rounded-lg mb-2 bg-muted"
+                  loading="eager"
+                />
+                <div className="font-mono text-base md:text-lg font-semibold">
+                  {i + 1}. {img.label}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="h-1.5 bg-muted rounded overflow-hidden mt-6">
+          <div
+            className="h-full bg-amber-500 transition-all duration-100"
+            style={{ width: `${totalDisplayMs > 0 ? (timeLeft / totalDisplayMs) * 100 : 0}%` }}
+          />
+        </div>
+
+        <Button
+          onClick={skipDisplay}
+          variant="ghost"
+          size="sm"
+          className="w-full mt-4 text-xs"
+        >
+          Ya memoricé, pasar a la pregunta
+        </Button>
+      </Card>
+    );
+  }
+
+  // ============ FASE ANSWER (prompt + input) ============
   return (
     <Card className="p-6 md:p-8 border-border/50 bg-card/50 backdrop-blur">
       <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
@@ -61,6 +165,13 @@ export function ExerciseRunner({ exercise, index, total, onAnswer, onNext, isLas
         {exercise.skill} · nivel {exercise.difficulty}
       </div>
 
+      {hasTimedDisplay && (
+        <div className="mb-3 text-xs text-amber-400 flex items-center gap-1 font-mono uppercase tracking-wider">
+          <EyeOff className="w-3 h-3" />
+          contenido oculto
+        </div>
+      )}
+
       <div className="text-lg md:text-2xl font-medium whitespace-pre-wrap leading-relaxed mb-6">
         {exercise.prompt}
       </div>
@@ -70,7 +181,7 @@ export function ExerciseRunner({ exercise, index, total, onAnswer, onNext, isLas
           <Input
             autoFocus
             type="text"
-            inputMode="numeric"
+            inputMode={exercise.type === "fraction" ? "text" : "numeric"}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Tu respuesta"
