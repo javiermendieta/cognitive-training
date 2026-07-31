@@ -1186,3 +1186,182 @@ export function getTodaySession(): SessionPlan["day"] {
   if (dayIdx === 6) return "lunes";  // domingo → lunes
   return DAY_ORDER[dayIdx];
 }
+
+// ============ MODO LIBRE ============
+// Catálogo de tipos de ejercicios. El usuario puede elegir tipo + nivel +
+// cantidad y entrenar lo que quiera sin seguir la rotación semanal.
+
+export interface ExerciseCatalogEntry {
+  type: string;
+  label: string;
+  category: string;
+  description: string;
+  supportsDifficulty: boolean;
+  skill: BaseExercise["skill"];
+  generate: (difficulty?: 1 | 2 | 3) => BaseExercise;
+}
+
+export const EXERCISE_CATALOG: ExerciseCatalogEntry[] = [
+  // --- Memoria / Buffer ---
+  {
+    type: "sum3",
+    label: "Suma mental de 3 dígitos",
+    category: "Memoria / Buffer",
+    description: "Sumá tres números de tres cifras en una sola pasada.",
+    supportsDifficulty: false,
+    skill: "buffer",
+    generate: () => genSum3Digits(),
+  },
+  {
+    type: "chain",
+    label: "Cadena de operaciones",
+    category: "Memoria / Buffer",
+    description: "5 operaciones encadenadas (con divisiones exactas).",
+    supportsDifficulty: false,
+    skill: "buffer",
+    generate: () => genOpChain(),
+  },
+  {
+    type: "nback",
+    label: "N-back visual",
+    category: "Memoria / Buffer",
+    description: "Secuencia de números que desaparece. Hay que recordar posiciones.",
+    supportsDifficulty: false,
+    skill: "buffer",
+    generate: () => genNBack(),
+  },
+  {
+    type: "names",
+    label: "Memoria de nombres",
+    category: "Memoria / Buffer",
+    description: "Lista de nombres que se oculta. Preguntas de posición / antes / después.",
+    supportsDifficulty: false,
+    skill: "retention",
+    generate: () => genNames(),
+  },
+  {
+    type: "faces",
+    label: "Memoria de rostros",
+    category: "Memoria / Buffer",
+    description: "Rostros con nombre que se ocultan. Preguntás el nombre de uno.",
+    supportsDifficulty: false,
+    skill: "retention",
+    generate: () => genFaces(),
+  },
+  // --- Cálculo cotidiano ---
+  {
+    type: "vuelto",
+    label: "Vueltos con descuento",
+    category: "Cálculo",
+    description: "Precio con descuento + billete grande. Calcular vuelto en ARS.",
+    supportsDifficulty: false,
+    skill: "calc",
+    generate: () => genVuelto(),
+  },
+  {
+    type: "pct_inv",
+    label: "Porcentaje invertido",
+    category: "Cálculo",
+    description: "Te doy el precio con descuento. Vos decís el precio ORIGINAL.",
+    supportsDifficulty: false,
+    skill: "calc",
+    generate: () => genPctInvertido(),
+  },
+  {
+    type: "mult2",
+    label: "Multiplicación 2 dígitos",
+    category: "Cálculo",
+    description: "Multiplicación mental de dos números de 2 cifras.",
+    supportsDifficulty: false,
+    skill: "calc",
+    generate: () => genMult2(),
+  },
+  {
+    type: "fraction",
+    label: "Operaciones con fracciones",
+    category: "Cálculo",
+    description: "Suma, resta o multiplicación de fracciones. Resultado simplificado.",
+    supportsDifficulty: false,
+    skill: "calc",
+    generate: () => genFraction(),
+  },
+  // --- Cocina aplicada ---
+  {
+    type: "menu_study",
+    label: "Memorizar menú",
+    category: "Cocina aplicada",
+    description: "Estudiá un menú (precio, categoría, más caro/barato) y respondés.",
+    supportsDifficulty: true,
+    skill: "retention",
+    generate: (d) => genMenuStudy(d),
+  },
+  {
+    type: "customer_orders",
+    label: "Comensales: quién pidió qué",
+    category: "Cocina aplicada",
+    description: "Memorizá qué pidió cada comensal. Después te pregunto.",
+    supportsDifficulty: true,
+    skill: "retention",
+    generate: (d) => genCustomerOrders(d),
+  },
+  {
+    type: "kitchen_comanda",
+    label: "Comanda de cocina",
+    category: "Cocina aplicada",
+    description: "Ves mesas con cursos pendientes. Cantás los SALE. Respondés qué falta.",
+    supportsDifficulty: true,
+    skill: "multitask",
+    generate: (d) => genKitchenComanda(d),
+  },
+  // --- Lectura densa ---
+  {
+    type: "retention",
+    label: "Texto de retención",
+    category: "Lectura densa",
+    description: "Texto de negocio. Una sola lectura. 6 preguntas de memoria.",
+    supportsDifficulty: false,
+    skill: "retention",
+    generate: () => genRetention(),
+  },
+  {
+    type: "multitask",
+    label: "Escenario multitarea",
+    category: "Lectura densa",
+    description: "Coordinación de mesas / remises. Múltiples preguntas en bloque.",
+    supportsDifficulty: false,
+    skill: "multitask",
+    generate: () => genMultitask(),
+  },
+  {
+    type: "boundary",
+    label: "Fronteras semánticas",
+    category: "Lectura densa",
+    description: "¿Aplica antes de / hasta / desde? Sí o No.",
+    supportsDifficulty: false,
+    skill: "semantic",
+    generate: () => genBoundary(),
+  },
+  // --- Velocidad ---
+  {
+    type: "speed",
+    label: "Velocidad pura",
+    category: "Velocidad",
+    description: "+, ×, % y vueltos simples. Rápido, no perfecto.",
+    supportsDifficulty: false,
+    skill: "speed",
+    generate: () => genSpeedExercise(),
+  },
+];
+
+// Generar N ejercicios de un tipo y dificultad dados
+export function generateCustomSet(
+  type: string,
+  difficulty: 1 | 2 | 3 | null,
+  count: number
+): BaseExercise[] {
+  const entry = EXERCISE_CATALOG.find((e) => e.type === type);
+  if (!entry) return [];
+  const d = entry.supportsDifficulty && difficulty ? difficulty : undefined;
+  return Array.from({ length: count }, () => entry.generate(d));
+}
+

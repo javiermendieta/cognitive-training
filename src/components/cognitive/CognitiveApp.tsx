@@ -14,6 +14,7 @@ import {
   Target,
   Zap,
   RefreshCw,
+  Dumbbell,
 } from "lucide-react";
 import {
   SESSIONS,
@@ -25,8 +26,9 @@ import { getStats, clearHistory, type StatsData } from "@/lib/cognitive-storage"
 import { useAuth } from "@/hooks/useAuth";
 import { SessionPanel } from "./SessionPanel";
 import { AuthBar } from "./AuthBar";
+import { FreeModePanel } from "./FreeModePanel";
 
-type View = "dashboard" | "session" | "stats";
+type View = "dashboard" | "session" | "stats" | "free";
 
 export function CognitiveApp() {
   const [view, setView] = useState<View>("dashboard");
@@ -73,6 +75,10 @@ export function CognitiveApp() {
     );
   }
 
+  if (view === "free") {
+    return <FreeModePanel onExit={() => handleViewChange("dashboard")} />;
+  }
+
   if (view === "stats") {
     return (
       <StatsPanel
@@ -91,6 +97,7 @@ export function CognitiveApp() {
     <Dashboard
       stats={stats}
       onStart={startSession}
+      onFreeMode={() => handleViewChange("free")}
       onSeeStats={() => handleViewChange("stats")}
       user={user}
       onLogin={login}
@@ -102,9 +109,10 @@ export function CognitiveApp() {
 
 // ============ DASHBOARD ============
 
-function Dashboard({ stats, onStart, onSeeStats, user, onLogin, onRegister, onLogout }: {
+function Dashboard({ stats, onStart, onFreeMode, onSeeStats, user, onLogin, onRegister, onLogout }: {
   stats: StatsData | null;
   onStart: (day: SessionPlan["day"]) => void;
+  onFreeMode: () => void;
   onSeeStats: () => void;
   user: { email?: string } | null;
   onLogin: (email: string, password: string) => Promise<{ error: string | null }>;
@@ -193,6 +201,27 @@ function Dashboard({ stats, onStart, onSeeStats, user, onLogin, onRegister, onLo
             Empezar ahora
             <ChevronRight className="w-4 h-4 ml-1" />
           </Button>
+        </div>
+      </Card>
+
+      {/* MODO LIBRE */}
+      <Card
+        className="p-5 md:p-6 mb-8 border-purple-500/30 bg-purple-500/5 cursor-pointer hover:bg-purple-500/10 transition-all"
+        onClick={onFreeMode}
+      >
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-lg bg-purple-500/20 text-purple-300 flex items-center justify-center">
+              <Dumbbell className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold mb-0.5">Modo libre</h3>
+              <p className="text-sm text-muted-foreground">
+                Elegí tipo de ejercicio + nivel + cantidad. Practicá lo que quieras, sin seguir la rotación.
+              </p>
+            </div>
+          </div>
+          <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
         </div>
       </Card>
 
