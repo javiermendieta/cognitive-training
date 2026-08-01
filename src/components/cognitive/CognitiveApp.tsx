@@ -184,7 +184,7 @@ function Dashboard({ stats, onStart, onFreeMode, onSeeStats, user, onLogin, onRe
       )}
 
       {/* ACCIÓN HOY */}
-      <Card className="p-5 md:p-6 mb-8 border-emerald-500/30 bg-emerald-500/5">
+      <Card className="p-5 md:p-6 mb-8 border-emerald-500/40 dark:bg-zinc-900 bg-emerald-50">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="text-[10px] font-mono uppercase tracking-widest text-emerald-400 mb-1">
@@ -266,7 +266,7 @@ function Dashboard({ stats, onStart, onFreeMode, onSeeStats, user, onLogin, onRe
       </div>
 
       {/* REGLAS */}
-      <Card className="p-5 md:p-6 mb-8 border-border/50 bg-muted/30">
+      <Card className="p-5 md:p-6 mb-8 border-border/60 dark:bg-zinc-900 bg-card">
         <div className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-3">
           Reglas operativas
         </div>

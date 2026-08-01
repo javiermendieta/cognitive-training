@@ -231,6 +231,10 @@ export interface BaseExercise {
   timedDisplay?: { content: string; durationMs: number };
   timedImages?: TimedImage[];
   timedDurationMs?: number;
+  // Para ejercicios de asociación: imagen que se muestra DURANTE la fase
+  // de respuesta (no solo en la fase de memorización). Ej: rostros →
+  // memorizás varios, después se muestra uno y preguntás el nombre.
+  answerImage?: { url: string; alt?: string };
 }
 
 // ============ LUNES: BUFFER DE TRABAJO ============
@@ -340,8 +344,8 @@ export function genOpChain(): BaseExercise {
 
 // 3. N-back visual (recordar secuencia con timer)
 // La secuencia se muestra X segundos y desaparece antes de preguntar
-export function genNBack(): BaseExercise {
-  const length = rand(6, 9);
+export function genNBack(opts?: { itemsCount?: number }): BaseExercise {
+  const length = opts?.itemsCount ?? rand(6, 9);
   const digits = Array.from({ length }, () => rand(0, 9));
 
   // Variantes de pregunta para evitar automatismo
@@ -540,10 +544,38 @@ const NOMBRES = [
   "Augusto", "Manuela", "Vincente", "Josefina", "Bautista", "Antonia",
 ];
 
+// Nombres separados por género, para que el ejercicio de rostros asigne
+// nombres que coincidan con el género de la foto.
+const NOMBRES_HOMBRES = [
+  "Juan", "Pedro", "Carlos", "Diego", "Pablo", "Mateo", "Tomás", "Bruno",
+  "Joaquín", "Nicolás", "Emilio", "Ramiro", "Santiago", "Federico",
+  "Augusto", "Vincente", "Bautista",
+];
+const NOMBRES_MUJERES = [
+  "María", "Lucía", "Ana", "Sofía", "Elena", "Carmen", "Valeria", "Renata",
+  "Florencia", "Dolores", "Catalina", "Mercedes", "Pilar", "Inés", "Cecilia",
+  "Manuela", "Josefina", "Antonia",
+];
+
+// randomuser.me/api/portraits tiene 0-99 índices separados por género.
+// Esto garantiza que la foto coincida con el género del nombre asignado,
+// a diferencia de pravatar.cc que mezcla géneros sin orden conocido.
+function pickGenderedFace(gender: "hombre" | "mujer", used: Set<number>): { url: string; idx: number } {
+  const folder = gender === "hombre" ? "men" : "women";
+  let idx: number;
+  let attempts = 0;
+  do {
+    idx = rand(0, 99);
+    attempts++;
+  } while (used.has(idx) && attempts < 50);
+  used.add(idx);
+  return { url: `https://randomuser.me/api/portraits/${folder}/${idx}.jpg`, idx };
+}
+
 // Memoria de nombres: muestra una lista de nombres por X segundos, los oculta,
 // y pregunta por uno de ellos (posición, antes, después, etc.)
-export function genNames(): BaseExercise {
-  const count = rand(4, 6);
+export function genNames(opts?: { itemsCount?: number }): BaseExercise {
+  const count = opts?.itemsCount ?? rand(4, 6);
   const shuffled = [...NOMBRES].sort(() => Math.random() - 0.5).slice(0, count);
 
   // Variantes de pregunta
@@ -595,24 +627,34 @@ export function genNames(): BaseExercise {
   };
 }
 
-// Memoria de rostros: muestra fotos con nombres por X segundos, los oculta,
-// y pregunta el nombre de uno de ellos. Usa pravatar.cc (70 imágenes gratuitas).
-export function genFaces(): BaseExercise {
-  const count = rand(3, 4);
-  // pravatar.cc tiene imágenes indexadas 1-70
-  const indices = Array.from({ length: 70 }, (_, i) => i + 1);
-  const selectedIdx = indices.sort(() => Math.random() - 0.5).slice(0, count);
-  const selectedNames = [...NOMBRES].sort(() => Math.random() - 0.5).slice(0, count);
+// Memoria de rostros: muestra fotos con nombres por X segundos, las oculta,
+// y después muestra UNA foto y pregunta "¿cómo se llama esta persona?".
+// Usa randomuser.me (separa hombres y mujeres) para que el género del
+// nombre asignado coincida con el de la foto.
+export function genFaces(opts?: { itemsCount?: number }): BaseExercise {
+  const count = opts?.itemsCount ?? rand(3, 4);
+  const usedIdx = new Set<number>();
 
-  const faces: TimedImage[] = selectedIdx.map((idx, i) => ({
-    url: `https://i.pravatar.cc/200?img=${idx}`,
-    label: selectedNames[i],
-  }));
+  // Decidir géneros aleatorios para cada foto
+  const genders: ("hombre" | "mujer")[] = Array.from({ length: count }, () =>
+    Math.random() < 0.5 ? "hombre" : "mujer"
+  );
 
-  // Preguntar por una posición específica
+  // Asignar nombres del género correcto (sin repetir)
+  const usedNames = new Set<string>();
+  const faces: TimedImage[] = genders.map((g) => {
+    const pool = g === "hombre" ? NOMBRES_HOMBRES : NOMBRES_MUJERES;
+    const available = pool.filter((n) => !usedNames.has(n));
+    const name = available.length > 0 ? pick(available) : pick(pool);
+    usedNames.add(name);
+    const face = pickGenderedFace(g, usedIdx);
+    return { url: face.url, label: name };
+  });
+
+  // Elegir cuál de las fotos se va a mostrar en la fase de respuesta
   const askIdx = rand(0, count - 1);
   const expected = faces[askIdx].label;
-  const question = `¿Cómo se llamaba la persona de la posición ${askIdx + 1}?`;
+  const question = "¿Cómo se llama esta persona?";
 
   return {
     id: crypto.randomUUID(),
@@ -622,6 +664,7 @@ export function genFaces(): BaseExercise {
     difficulty: 3,
     timedImages: faces,
     timedDurationMs: count * 2800, // 2.8s por rostro
+    answerImage: { url: faces[askIdx].url, alt: "Persona a identificar" },
     validate: (input) => {
       const ok = smartMatch(input, expected);
       return {
@@ -1369,8 +1412,13 @@ export interface ExerciseCatalogEntry {
   category: string;
   description: string;
   supportsDifficulty: boolean;
+  supportsItemsCount: boolean;
+  itemsCountLabel: string;       // ej: "rostros", "nombres", "dígitos"
+  itemsCountMin: number;
+  itemsCountMax: number;
+  itemsCountDefault: number;
   skill: BaseExercise["skill"];
-  generate: (difficulty?: 1 | 2 | 3) => BaseExercise;
+  generate: (difficulty?: 1 | 2 | 3, opts?: { itemsCount?: number }) => BaseExercise;
 }
 
 export const EXERCISE_CATALOG: ExerciseCatalogEntry[] = [
@@ -1381,6 +1429,11 @@ export const EXERCISE_CATALOG: ExerciseCatalogEntry[] = [
     category: "Memoria / Buffer",
     description: "Sumá tres números de tres cifras en una sola pasada.",
     supportsDifficulty: false,
+    supportsItemsCount: false,
+    itemsCountLabel: "",
+    itemsCountMin: 0,
+    itemsCountMax: 0,
+    itemsCountDefault: 0,
     skill: "buffer",
     generate: () => genSum3Digits(),
   },
@@ -1390,6 +1443,11 @@ export const EXERCISE_CATALOG: ExerciseCatalogEntry[] = [
     category: "Memoria / Buffer",
     description: "5 operaciones encadenadas (con divisiones exactas).",
     supportsDifficulty: false,
+    supportsItemsCount: false,
+    itemsCountLabel: "",
+    itemsCountMin: 0,
+    itemsCountMax: 0,
+    itemsCountDefault: 0,
     skill: "buffer",
     generate: () => genOpChain(),
   },
@@ -1399,8 +1457,13 @@ export const EXERCISE_CATALOG: ExerciseCatalogEntry[] = [
     category: "Memoria / Buffer",
     description: "Secuencia de números que desaparece. Hay que recordar posiciones.",
     supportsDifficulty: false,
+    supportsItemsCount: true,
+    itemsCountLabel: "dígitos",
+    itemsCountMin: 4,
+    itemsCountMax: 12,
+    itemsCountDefault: 7,
     skill: "buffer",
-    generate: () => genNBack(),
+    generate: (_d, opts) => genNBack(opts),
   },
   {
     type: "names",
@@ -1408,17 +1471,27 @@ export const EXERCISE_CATALOG: ExerciseCatalogEntry[] = [
     category: "Memoria / Buffer",
     description: "Lista de nombres que se oculta. Preguntas de posición / antes / después.",
     supportsDifficulty: false,
+    supportsItemsCount: true,
+    itemsCountLabel: "nombres",
+    itemsCountMin: 3,
+    itemsCountMax: 10,
+    itemsCountDefault: 5,
     skill: "retention",
-    generate: () => genNames(),
+    generate: (_d, opts) => genNames(opts),
   },
   {
     type: "faces",
     label: "Memoria de rostros",
     category: "Memoria / Buffer",
-    description: "Rostros con nombre que se ocultan. Preguntás el nombre de uno.",
+    description: "Memorizá rostros con nombres. Después ves una foto y decís quién es.",
     supportsDifficulty: false,
+    supportsItemsCount: true,
+    itemsCountLabel: "rostros",
+    itemsCountMin: 2,
+    itemsCountMax: 8,
+    itemsCountDefault: 4,
     skill: "retention",
-    generate: () => genFaces(),
+    generate: (_d, opts) => genFaces(opts),
   },
   // --- Cálculo cotidiano ---
   {
@@ -1427,6 +1500,11 @@ export const EXERCISE_CATALOG: ExerciseCatalogEntry[] = [
     category: "Cálculo",
     description: "Precio con descuento + billete grande. Calcular vuelto en ARS.",
     supportsDifficulty: false,
+    supportsItemsCount: false,
+    itemsCountLabel: "",
+    itemsCountMin: 0,
+    itemsCountMax: 0,
+    itemsCountDefault: 0,
     skill: "calc",
     generate: () => genVuelto(),
   },
@@ -1436,6 +1514,11 @@ export const EXERCISE_CATALOG: ExerciseCatalogEntry[] = [
     category: "Cálculo",
     description: "Te doy el precio con descuento. Vos decís el precio ORIGINAL.",
     supportsDifficulty: false,
+    supportsItemsCount: false,
+    itemsCountLabel: "",
+    itemsCountMin: 0,
+    itemsCountMax: 0,
+    itemsCountDefault: 0,
     skill: "calc",
     generate: () => genPctInvertido(),
   },
@@ -1445,6 +1528,11 @@ export const EXERCISE_CATALOG: ExerciseCatalogEntry[] = [
     category: "Cálculo",
     description: "Multiplicación mental de dos números de 2 cifras.",
     supportsDifficulty: false,
+    supportsItemsCount: false,
+    itemsCountLabel: "",
+    itemsCountMin: 0,
+    itemsCountMax: 0,
+    itemsCountDefault: 0,
     skill: "calc",
     generate: () => genMult2(),
   },
@@ -1454,6 +1542,11 @@ export const EXERCISE_CATALOG: ExerciseCatalogEntry[] = [
     category: "Cálculo",
     description: "Suma, resta o multiplicación de fracciones. Resultado simplificado.",
     supportsDifficulty: false,
+    supportsItemsCount: false,
+    itemsCountLabel: "",
+    itemsCountMin: 0,
+    itemsCountMax: 0,
+    itemsCountDefault: 0,
     skill: "calc",
     generate: () => genFraction(),
   },
@@ -1464,6 +1557,11 @@ export const EXERCISE_CATALOG: ExerciseCatalogEntry[] = [
     category: "Cocina aplicada",
     description: "Estudiá un menú (precio, categoría, más caro/barato) y respondés.",
     supportsDifficulty: true,
+    supportsItemsCount: false,
+    itemsCountLabel: "",
+    itemsCountMin: 0,
+    itemsCountMax: 0,
+    itemsCountDefault: 0,
     skill: "retention",
     generate: (d) => genMenuStudy(d),
   },
@@ -1473,6 +1571,11 @@ export const EXERCISE_CATALOG: ExerciseCatalogEntry[] = [
     category: "Cocina aplicada",
     description: "Memorizá qué pidió cada comensal. Después te pregunto.",
     supportsDifficulty: true,
+    supportsItemsCount: false,
+    itemsCountLabel: "",
+    itemsCountMin: 0,
+    itemsCountMax: 0,
+    itemsCountDefault: 0,
     skill: "retention",
     generate: (d) => genCustomerOrders(d),
   },
@@ -1482,6 +1585,11 @@ export const EXERCISE_CATALOG: ExerciseCatalogEntry[] = [
     category: "Cocina aplicada",
     description: "Ves mesas con cursos pendientes. Cantás los SALE. Respondés qué falta.",
     supportsDifficulty: true,
+    supportsItemsCount: false,
+    itemsCountLabel: "",
+    itemsCountMin: 0,
+    itemsCountMax: 0,
+    itemsCountDefault: 0,
     skill: "multitask",
     generate: (d) => genKitchenComanda(d),
   },
@@ -1492,6 +1600,11 @@ export const EXERCISE_CATALOG: ExerciseCatalogEntry[] = [
     category: "Lectura densa",
     description: "Texto de negocio. Una sola lectura. 6 preguntas de memoria.",
     supportsDifficulty: false,
+    supportsItemsCount: false,
+    itemsCountLabel: "",
+    itemsCountMin: 0,
+    itemsCountMax: 0,
+    itemsCountDefault: 0,
     skill: "retention",
     generate: () => genRetention(),
   },
@@ -1501,6 +1614,11 @@ export const EXERCISE_CATALOG: ExerciseCatalogEntry[] = [
     category: "Lectura densa",
     description: "Coordinación de mesas / remises. Múltiples preguntas en bloque.",
     supportsDifficulty: false,
+    supportsItemsCount: false,
+    itemsCountLabel: "",
+    itemsCountMin: 0,
+    itemsCountMax: 0,
+    itemsCountDefault: 0,
     skill: "multitask",
     generate: () => genMultitask(),
   },
@@ -1510,6 +1628,11 @@ export const EXERCISE_CATALOG: ExerciseCatalogEntry[] = [
     category: "Lectura densa",
     description: "¿Aplica antes de / hasta / desde? Sí o No.",
     supportsDifficulty: false,
+    supportsItemsCount: false,
+    itemsCountLabel: "",
+    itemsCountMin: 0,
+    itemsCountMax: 0,
+    itemsCountDefault: 0,
     skill: "semantic",
     generate: () => genBoundary(),
   },
@@ -1520,6 +1643,11 @@ export const EXERCISE_CATALOG: ExerciseCatalogEntry[] = [
     category: "Velocidad",
     description: "+, ×, % y vueltos simples. Rápido, no perfecto.",
     supportsDifficulty: false,
+    supportsItemsCount: false,
+    itemsCountLabel: "",
+    itemsCountMin: 0,
+    itemsCountMax: 0,
+    itemsCountDefault: 0,
     skill: "speed",
     generate: () => genSpeedExercise(),
   },
@@ -1529,11 +1657,13 @@ export const EXERCISE_CATALOG: ExerciseCatalogEntry[] = [
 export function generateCustomSet(
   type: string,
   difficulty: 1 | 2 | 3 | null,
-  count: number
+  count: number,
+  itemsCount?: number
 ): BaseExercise[] {
   const entry = EXERCISE_CATALOG.find((e) => e.type === type);
   if (!entry) return [];
   const d = entry.supportsDifficulty && difficulty ? difficulty : undefined;
-  return Array.from({ length: count }, () => entry.generate(d));
+  const opts = entry.supportsItemsCount && itemsCount ? { itemsCount } : undefined;
+  return Array.from({ length: count }, () => entry.generate(d, opts));
 }
 

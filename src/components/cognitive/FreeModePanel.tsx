@@ -87,6 +87,7 @@ export function FreeModePanel({ onExit }: Props) {
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [difficulty, setDifficulty] = useState<Difficulty>(1);
   const [count, setCount] = useState<number>(5);
+  const [itemsCount, setItemsCount] = useState<number | null>(null);
   const [memorizeSec, setMemorizeSec] = useState<number | null>(null);
   const [eventSec, setEventSec] = useState<number | null>(null);
   const [running, setRunning] = useState(false);
@@ -101,7 +102,7 @@ export function FreeModePanel({ onExit }: Props) {
 
   const start = () => {
     if (!selectedType) return;
-    let set = generateCustomSet(selectedType, difficulty, count);
+    let set = generateCustomSet(selectedType, difficulty, count, itemsCount ?? undefined);
     // Aplicar overrides de tiempo si el ejercicio tiene fase de memorización
     if (TIMED_TYPES.has(selectedType)) {
       set = set.map((ex) => applyMemorizeOverride(ex, memorizeSec));
@@ -168,8 +169,12 @@ export function FreeModePanel({ onExit }: Props) {
                 return (
                   <Card
                     key={entry.type}
-                    className={`p-4 cursor-pointer transition-all hover:bg-accent/40 ${isSelected ? "border-emerald-500/60 bg-emerald-500/5" : ""}`}
-                    onClick={() => setSelectedType(entry.type)}
+                    className={`p-4 cursor-pointer transition-all hover:bg-accent/40 ${isSelected ? "border-emerald-500/60 dark:bg-emerald-950/40 bg-emerald-50" : "dark:bg-zinc-900 bg-card"}`}
+                    onClick={() => {
+                      setSelectedType(entry.type);
+                      // Reset itemsCount al default del tipo seleccionado
+                      setItemsCount(entry.supportsItemsCount ? entry.itemsCountDefault : null);
+                    }}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
@@ -201,7 +206,7 @@ export function FreeModePanel({ onExit }: Props) {
 
       {/* Configuración */}
       {selectedEntry && (
-        <Card className="p-5 md:p-6 mb-6 border-emerald-500/30 bg-emerald-500/5 sticky bottom-4">
+        <Card className="p-5 md:p-6 mb-6 border-emerald-500/40 dark:bg-zinc-900 bg-emerald-50 sticky bottom-4">
           <div className="flex flex-col gap-4">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -241,9 +246,9 @@ export function FreeModePanel({ onExit }: Props) {
                 </div>
               </div>
 
-              {/* Cantidad */}
+              {/* Cantidad de ejercicios */}
               <div>
-                <div className="text-xs text-muted-foreground mb-2">Cantidad</div>
+                <div className="text-xs text-muted-foreground mb-2">Cantidad de ejercicios</div>
                 <div className="flex gap-2">
                   {[3, 5, 10, 15].map((c) => (
                     <Button
@@ -259,6 +264,34 @@ export function FreeModePanel({ onExit }: Props) {
                 </div>
               </div>
             </div>
+
+            {/* Items por ejercicio (rostros, nombres, n-back) */}
+            {selectedEntry?.supportsItemsCount && (
+              <div>
+                <div className="text-xs text-muted-foreground mb-2">
+                  {selectedEntry.itemsCountLabel.charAt(0).toUpperCase() + selectedEntry.itemsCountLabel.slice(1)} por ejercicio
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {Array.from(
+                    { length: selectedEntry.itemsCountMax - selectedEntry.itemsCountMin + 1 },
+                    (_, i) => selectedEntry.itemsCountMin + i
+                  ).map((n) => (
+                    <Button
+                      key={n}
+                      size="sm"
+                      variant={itemsCount === n ? "default" : "outline"}
+                      onClick={() => setItemsCount(n)}
+                      className="h-9 px-3"
+                    >
+                      {n}
+                    </Button>
+                  ))}
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-1.5 italic">
+                  Cuántos {selectedEntry.itemsCountLabel} se muestran por ejercicio.
+                </div>
+              </div>
+            )}
 
             {/* Tiempo de memorización */}
             {hasMemorizeTime && (

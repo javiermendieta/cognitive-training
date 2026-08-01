@@ -116,7 +116,7 @@ export function ExerciseRunner({ exercise, index, total, onAnswer, onNext, isLas
   if (phase === "display") {
     const seconds = Math.ceil(timeLeft / 1000);
     return (
-      <Card className="p-6 md:p-8 border-amber-500/40 bg-amber-500/10">
+      <Card className="p-6 md:p-8 border-amber-500/40 dark:bg-zinc-900 bg-amber-50">
         <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
           <span className="flex items-center gap-1">
             <Eye className="w-3 h-3" />
@@ -173,7 +173,7 @@ export function ExerciseRunner({ exercise, index, total, onAnswer, onNext, isLas
 
   // ============ FASE ANSWER (prompt + input) ============
   return (
-    <Card className="p-6 md:p-8 border-border/60 bg-card/95">
+    <Card className="p-6 md:p-8 border-border/60 dark:bg-zinc-900 bg-card">
       <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
         <span>Ejercicio {index + 1} / {total}</span>
         <span className="flex items-center gap-1">
@@ -186,10 +186,21 @@ export function ExerciseRunner({ exercise, index, total, onAnswer, onNext, isLas
         {exercise.skill} · nivel {exercise.difficulty}
       </div>
 
-      {hasTimedDisplay && (
+      {hasTimedDisplay && !exercise.answerImage && (
         <div className="mb-3 text-xs text-amber-400 flex items-center gap-1 font-mono uppercase tracking-wider">
           <EyeOff className="w-3 h-3" />
           contenido oculto
+        </div>
+      )}
+
+      {exercise.answerImage && (
+        <div className="flex justify-center mb-6">
+          <img
+            src={exercise.answerImage.url}
+            alt={exercise.answerImage.alt || ""}
+            className="w-40 h-40 md:w-48 md:h-48 object-cover rounded-lg border border-border/60 bg-muted"
+            loading="eager"
+          />
         </div>
       )}
 
@@ -217,7 +228,7 @@ export function ExerciseRunner({ exercise, index, total, onAnswer, onNext, isLas
         </form>
       ) : (
         <div className="space-y-4">
-          <div className={`p-4 rounded-lg border ${feedback?.correct ? "border-emerald-500/40 bg-emerald-500/10" : "border-red-500/40 bg-red-500/10"}`}>
+          <div className={`p-4 rounded-lg border ${feedback?.correct ? "border-emerald-500/40 dark:bg-emerald-950/50 bg-emerald-50" : "border-red-500/40 dark:bg-red-950/50 bg-red-50"}`}>
             <div className="flex items-center gap-2 mb-2">
               {feedback?.correct ? (
                 <Check className="w-5 h-5 text-emerald-400" />
@@ -270,7 +281,7 @@ export function RetentionRunner({ exercise, onDone }: {
 
   if (phase === "reading") {
     return (
-      <Card className="p-6 md:p-8 border-border/60 bg-card/95">
+      <Card className="p-6 md:p-8 border-border/60 dark:bg-zinc-900 bg-card">
         <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
           <span>Fase 1: Lectura</span>
           <span className="flex items-center gap-1 text-amber-400">
@@ -291,7 +302,7 @@ export function RetentionRunner({ exercise, onDone }: {
   }
 
   return (
-    <Card className="p-6 md:p-8 border-border/60 bg-card/95">
+    <Card className="p-6 md:p-8 border-border/60 dark:bg-zinc-900 bg-card">
       <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
         <span>Fase 2: Preguntas</span>
         <span>El texto ya NO está visible</span>
@@ -302,8 +313,8 @@ export function RetentionRunner({ exercise, onDone }: {
           const ok = check(answers[i], q.a);
           return (
             <div key={i} className={revealed ? (
-              ok ? "p-3 rounded border border-emerald-500/40 bg-emerald-500/10" : "p-3 rounded border border-red-500/40 bg-red-500/10"
-            ) : "p-3 rounded border border-border/40 bg-background/70"}>
+              ok ? "p-3 rounded border border-emerald-500/40 dark:bg-emerald-950/50 bg-emerald-50" : "p-3 rounded border border-red-500/40 dark:bg-red-950/50 bg-red-50"
+            ) : "p-3 rounded border border-border/40 dark:bg-zinc-800 bg-muted"}>
               <div className="text-sm text-muted-foreground mb-1">P{i + 1}: {q.q}</div>
               {revealed ? (
                 <>
@@ -374,7 +385,7 @@ export function MultitaskRunner({ exercise, onDone }: {
 
   if (phase === "reading") {
     return (
-      <Card className="p-6 md:p-8 border-border/60 bg-card/95">
+      <Card className="p-6 md:p-8 border-border/60 dark:bg-zinc-900 bg-card">
         <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
           <span>Escenario (una sola lectura)</span>
           <span className="flex items-center gap-1 text-amber-400">
@@ -395,7 +406,7 @@ export function MultitaskRunner({ exercise, onDone }: {
   }
 
   return (
-    <Card className="p-6 md:p-8 border-border/60 bg-card/95">
+    <Card className="p-6 md:p-8 border-border/60 dark:bg-zinc-900 bg-card">
       <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
         <span>Preguntas</span>
         <span>El escenario ya NO está visible</span>
@@ -406,8 +417,8 @@ export function MultitaskRunner({ exercise, onDone }: {
           const ok = check(answers[i], q.a);
           return (
             <div key={i} className={revealed ? (
-              ok ? "p-3 rounded border border-emerald-500/40 bg-emerald-500/10" : "p-3 rounded border border-red-500/40 bg-red-500/10"
-            ) : "p-3 rounded border border-border/40 bg-background/70"}>
+              ok ? "p-3 rounded border border-emerald-500/40 dark:bg-emerald-950/50 bg-emerald-50" : "p-3 rounded border border-red-500/40 dark:bg-red-950/50 bg-red-50"
+            ) : "p-3 rounded border border-border/40 dark:bg-zinc-800 bg-muted"}>
               <div className="text-sm text-muted-foreground mb-1">P{i + 1}: {q.q}</div>
               {revealed ? (
                 <>
@@ -492,7 +503,7 @@ export function MenuStudyRunner({ exercise, onDone }: {
   if (phase === "study") {
     const seconds = Math.ceil(timeLeft / 1000);
     return (
-      <Card className="p-6 md:p-8 border-amber-500/40 bg-amber-500/10">
+      <Card className="p-6 md:p-8 border-amber-500/40 dark:bg-zinc-900 bg-amber-50">
         <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
           <span className="flex items-center gap-1">
             <ChefHat className="w-3 h-3" />
@@ -537,7 +548,7 @@ export function MenuStudyRunner({ exercise, onDone }: {
   }
 
   return (
-    <Card className="p-6 md:p-8 border-border/60 bg-card/95">
+    <Card className="p-6 md:p-8 border-border/60 dark:bg-zinc-900 bg-card">
       <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
         <span>Preguntas del menú</span>
         <span className="flex items-center gap-1 text-amber-400">
@@ -551,8 +562,8 @@ export function MenuStudyRunner({ exercise, onDone }: {
           const ok = check(answers[i], q.a);
           return (
             <div key={i} className={revealed ? (
-              ok ? "p-3 rounded border border-emerald-500/40 bg-emerald-500/10" : "p-3 rounded border border-red-500/40 bg-red-500/10"
-            ) : "p-3 rounded border border-border/40 bg-background/70"}>
+              ok ? "p-3 rounded border border-emerald-500/40 dark:bg-emerald-950/50 bg-emerald-50" : "p-3 rounded border border-red-500/40 dark:bg-red-950/50 bg-red-50"
+            ) : "p-3 rounded border border-border/40 dark:bg-zinc-800 bg-muted"}>
               <div className="text-sm text-muted-foreground mb-1">P{i + 1}: {q.q}</div>
               {revealed ? (
                 <>
@@ -636,7 +647,7 @@ export function CustomerOrdersRunner({ exercise, onDone }: {
   if (phase === "study") {
     const seconds = Math.ceil(timeLeft / 1000);
     return (
-      <Card className="p-6 md:p-8 border-amber-500/40 bg-amber-500/10">
+      <Card className="p-6 md:p-8 border-amber-500/40 dark:bg-zinc-900 bg-amber-50">
         <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
           <span className="flex items-center gap-1">
             <ChefHat className="w-3 h-3" />
@@ -650,8 +661,8 @@ export function CustomerOrdersRunner({ exercise, onDone }: {
 
         <div className="space-y-3">
           {exercise.customers.map((c, i) => (
-            <div key={i} className="flex items-start gap-3 p-3 rounded border border-border/40 bg-background/70">
-              <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-300 flex items-center justify-center font-mono text-xs">
+            <div key={i} className="flex items-start gap-3 p-3 rounded border border-border/40 dark:bg-zinc-800 bg-muted">
+              <div className="w-8 h-8 rounded-full bg-emerald-500/30 text-emerald-300 flex items-center justify-center font-mono text-xs">
                 {i + 1}
               </div>
               <div className="flex-1">
@@ -684,7 +695,7 @@ export function CustomerOrdersRunner({ exercise, onDone }: {
   }
 
   return (
-    <Card className="p-6 md:p-8 border-border/60 bg-card/95">
+    <Card className="p-6 md:p-8 border-border/60 dark:bg-zinc-900 bg-card">
       <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
         <span>Preguntas de comensales</span>
         <span className="flex items-center gap-1 text-amber-400">
@@ -698,8 +709,8 @@ export function CustomerOrdersRunner({ exercise, onDone }: {
           const ok = check(answers[i], q.a);
           return (
             <div key={i} className={revealed ? (
-              ok ? "p-3 rounded border border-emerald-500/40 bg-emerald-500/10" : "p-3 rounded border border-red-500/40 bg-red-500/10"
-            ) : "p-3 rounded border border-border/40 bg-background/70"}>
+              ok ? "p-3 rounded border border-emerald-500/40 dark:bg-emerald-950/50 bg-emerald-50" : "p-3 rounded border border-red-500/40 dark:bg-red-950/50 bg-red-50"
+            ) : "p-3 rounded border border-border/40 dark:bg-zinc-800 bg-muted"}>
               <div className="text-sm text-muted-foreground mb-1">P{i + 1}: {q.q}</div>
               {revealed ? (
                 <>
@@ -803,7 +814,7 @@ export function KitchenComandaRunner({ exercise, onDone }: {
   if (phase === "study") {
     const seconds = Math.ceil(timeLeft / 1000);
     return (
-      <Card className="p-6 md:p-8 border-amber-500/40 bg-amber-500/10">
+      <Card className="p-6 md:p-8 border-amber-500/40 dark:bg-zinc-900 bg-amber-50">
         <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
           <span className="flex items-center gap-1">
             <ChefHat className="w-3 h-3" />
@@ -817,7 +828,7 @@ export function KitchenComandaRunner({ exercise, onDone }: {
 
         <div className="space-y-3">
           {exercise.initialState.map((t) => (
-            <div key={t.table} className="p-3 rounded border border-border/40 bg-background/70">
+            <div key={t.table} className="p-3 rounded border border-border/40 dark:bg-zinc-800 bg-muted">
               <div className="text-sm font-mono uppercase tracking-wider text-emerald-400 mb-2">
                 Mesa {t.table}
               </div>
@@ -855,7 +866,7 @@ export function KitchenComandaRunner({ exercise, onDone }: {
     const secondsLeft = Math.ceil((ms * (total - eventsShown)) / 1000);
 
     return (
-      <Card className="p-6 md:p-8 border-emerald-500/30 bg-emerald-500/5">
+      <Card className="p-6 md:p-8 border-emerald-500/40 dark:bg-zinc-900 bg-emerald-50">
         <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
           <span className="flex items-center gap-1">
             <ChefHat className="w-3 h-3" />
@@ -901,7 +912,7 @@ export function KitchenComandaRunner({ exercise, onDone }: {
 
   // ---- FASE 3: PREGUNTAS ----
   return (
-    <Card className="p-6 md:p-8 border-border/60 bg-card/95">
+    <Card className="p-6 md:p-8 border-border/60 dark:bg-zinc-900 bg-card">
       <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
         <span>Preguntas sobre el estado final</span>
         <span className="flex items-center gap-1 text-amber-400">
@@ -915,8 +926,8 @@ export function KitchenComandaRunner({ exercise, onDone }: {
           const ok = check(answers[i], q.a);
           return (
             <div key={i} className={revealed ? (
-              ok ? "p-3 rounded border border-emerald-500/40 bg-emerald-500/10" : "p-3 rounded border border-red-500/40 bg-red-500/10"
-            ) : "p-3 rounded border border-border/40 bg-background/70"}>
+              ok ? "p-3 rounded border border-emerald-500/40 dark:bg-emerald-950/50 bg-emerald-50" : "p-3 rounded border border-red-500/40 dark:bg-red-950/50 bg-red-50"
+            ) : "p-3 rounded border border-border/40 dark:bg-zinc-800 bg-muted"}>
               <div className="text-sm text-muted-foreground mb-1">P{i + 1}: {q.q}</div>
               {revealed ? (
                 <>
