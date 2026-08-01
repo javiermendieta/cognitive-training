@@ -66,7 +66,7 @@ export function SessionPanel({ day, onExit, onComplete }: Props) {
     }
   };
 
-  // Para retención/multitarea que retornan resultados en bloque
+  // Para retención/multitarea/menú/comanda que retornan resultados en bloque
   const recordMultiResult = (qResults: { q: string; userAnswer: string; correct: boolean; expected: string }[], timeMs: number) => {
     const ex = exercises[currentIndex];
     if (!ex) return;
@@ -79,8 +79,17 @@ export function SessionPanel({ day, onExit, onComplete }: Props) {
       expected: r.expected,
       timeMs: timeMs / qResults.length,
     }));
-    setResults((r) => [...r, ...newResults]);
-    setTimeout(() => finishSession(newResults), 100);
+    const allResults = [...results, ...newResults];
+    setResults(allResults);
+    setTimeout(() => {
+      if (currentIndex < exercises.length - 1) {
+        // Avanzar al siguiente ejercicio de la sesión
+        setCurrentIndex((i) => i + 1);
+      } else {
+        // Era el último: recién ahí terminar la sesión con TODOS los resultados
+        finishSession(allResults);
+      }
+    }, 100);
   };
 
   const finishSession = (extraResults?: ExerciseResult[]) => {
