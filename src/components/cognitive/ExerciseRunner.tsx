@@ -15,6 +15,19 @@ import type {
 } from "@/lib/cognitive-engine";
 import { smartMatch } from "@/lib/cognitive-engine";
 
+// Tipos de ejercicio cuya respuesta es numérica (teclado numérico en móvil).
+// Todo lo demás (nombres, rostros, retention, multitask, boundary, menu, comanda,
+// fracciones con texto) usa teclado de texto completo para poder escribir letras.
+const NUMERIC_TYPES = new Set([
+  "sum3",
+  "chain",
+  "nback",
+  "vuelto",
+  "pct_inv",
+  "mult2",
+  "speed",
+]);
+
 interface Props {
   exercise: BaseExercise;
   index: number;
@@ -103,7 +116,7 @@ export function ExerciseRunner({ exercise, index, total, onAnswer, onNext, isLas
   if (phase === "display") {
     const seconds = Math.ceil(timeLeft / 1000);
     return (
-      <Card className="p-6 md:p-8 border-amber-500/30 bg-amber-500/5">
+      <Card className="p-6 md:p-8 border-amber-500/40 bg-amber-500/10">
         <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
           <span className="flex items-center gap-1">
             <Eye className="w-3 h-3" />
@@ -160,7 +173,7 @@ export function ExerciseRunner({ exercise, index, total, onAnswer, onNext, isLas
 
   // ============ FASE ANSWER (prompt + input) ============
   return (
-    <Card className="p-6 md:p-8 border-border/50 bg-card/50 backdrop-blur">
+    <Card className="p-6 md:p-8 border-border/60 bg-card/95">
       <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
         <span>Ejercicio {index + 1} / {total}</span>
         <span className="flex items-center gap-1">
@@ -189,7 +202,7 @@ export function ExerciseRunner({ exercise, index, total, onAnswer, onNext, isLas
           <Input
             autoFocus
             type="text"
-            inputMode={exercise.type === "fraction" ? "text" : "numeric"}
+            inputMode={NUMERIC_TYPES.has(exercise.type) ? "numeric" : "text"}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Tu respuesta"
@@ -257,7 +270,7 @@ export function RetentionRunner({ exercise, onDone }: {
 
   if (phase === "reading") {
     return (
-      <Card className="p-6 md:p-8 border-border/50 bg-card/50 backdrop-blur">
+      <Card className="p-6 md:p-8 border-border/60 bg-card/95">
         <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
           <span>Fase 1: Lectura</span>
           <span className="flex items-center gap-1 text-amber-400">
@@ -278,7 +291,7 @@ export function RetentionRunner({ exercise, onDone }: {
   }
 
   return (
-    <Card className="p-6 md:p-8 border-border/50 bg-card/50 backdrop-blur">
+    <Card className="p-6 md:p-8 border-border/60 bg-card/95">
       <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
         <span>Fase 2: Preguntas</span>
         <span>El texto ya NO está visible</span>
@@ -290,7 +303,7 @@ export function RetentionRunner({ exercise, onDone }: {
           return (
             <div key={i} className={revealed ? (
               ok ? "p-3 rounded border border-emerald-500/40 bg-emerald-500/10" : "p-3 rounded border border-red-500/40 bg-red-500/10"
-            ) : "p-3 rounded border border-border/40 bg-background/30"}>
+            ) : "p-3 rounded border border-border/40 bg-background/70"}>
               <div className="text-sm text-muted-foreground mb-1">P{i + 1}: {q.q}</div>
               {revealed ? (
                 <>
@@ -299,6 +312,8 @@ export function RetentionRunner({ exercise, onDone }: {
                 </>
               ) : (
                 <Input
+                  type="text"
+                  inputMode="text"
                   value={answers[i]}
                   onChange={(e) => setAnswers((a) => a.map((v, j) => (j === i ? e.target.value : v)))}
                   placeholder="Respuesta"
@@ -359,7 +374,7 @@ export function MultitaskRunner({ exercise, onDone }: {
 
   if (phase === "reading") {
     return (
-      <Card className="p-6 md:p-8 border-border/50 bg-card/50 backdrop-blur">
+      <Card className="p-6 md:p-8 border-border/60 bg-card/95">
         <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
           <span>Escenario (una sola lectura)</span>
           <span className="flex items-center gap-1 text-amber-400">
@@ -380,7 +395,7 @@ export function MultitaskRunner({ exercise, onDone }: {
   }
 
   return (
-    <Card className="p-6 md:p-8 border-border/50 bg-card/50 backdrop-blur">
+    <Card className="p-6 md:p-8 border-border/60 bg-card/95">
       <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
         <span>Preguntas</span>
         <span>El escenario ya NO está visible</span>
@@ -392,7 +407,7 @@ export function MultitaskRunner({ exercise, onDone }: {
           return (
             <div key={i} className={revealed ? (
               ok ? "p-3 rounded border border-emerald-500/40 bg-emerald-500/10" : "p-3 rounded border border-red-500/40 bg-red-500/10"
-            ) : "p-3 rounded border border-border/40 bg-background/30"}>
+            ) : "p-3 rounded border border-border/40 bg-background/70"}>
               <div className="text-sm text-muted-foreground mb-1">P{i + 1}: {q.q}</div>
               {revealed ? (
                 <>
@@ -401,6 +416,8 @@ export function MultitaskRunner({ exercise, onDone }: {
                 </>
               ) : (
                 <Input
+                  type="text"
+                  inputMode="text"
                   value={answers[i]}
                   onChange={(e) => setAnswers((a) => a.map((v, j) => (j === i ? e.target.value : v)))}
                   placeholder="Respuesta"
@@ -475,7 +492,7 @@ export function MenuStudyRunner({ exercise, onDone }: {
   if (phase === "study") {
     const seconds = Math.ceil(timeLeft / 1000);
     return (
-      <Card className="p-6 md:p-8 border-amber-500/30 bg-amber-500/5">
+      <Card className="p-6 md:p-8 border-amber-500/40 bg-amber-500/10">
         <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
           <span className="flex items-center gap-1">
             <ChefHat className="w-3 h-3" />
@@ -520,7 +537,7 @@ export function MenuStudyRunner({ exercise, onDone }: {
   }
 
   return (
-    <Card className="p-6 md:p-8 border-border/50 bg-card/50 backdrop-blur">
+    <Card className="p-6 md:p-8 border-border/60 bg-card/95">
       <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
         <span>Preguntas del menú</span>
         <span className="flex items-center gap-1 text-amber-400">
@@ -535,7 +552,7 @@ export function MenuStudyRunner({ exercise, onDone }: {
           return (
             <div key={i} className={revealed ? (
               ok ? "p-3 rounded border border-emerald-500/40 bg-emerald-500/10" : "p-3 rounded border border-red-500/40 bg-red-500/10"
-            ) : "p-3 rounded border border-border/40 bg-background/30"}>
+            ) : "p-3 rounded border border-border/40 bg-background/70"}>
               <div className="text-sm text-muted-foreground mb-1">P{i + 1}: {q.q}</div>
               {revealed ? (
                 <>
@@ -544,6 +561,8 @@ export function MenuStudyRunner({ exercise, onDone }: {
                 </>
               ) : (
                 <Input
+                  type="text"
+                  inputMode="text"
                   value={answers[i]}
                   onChange={(e) => setAnswers((a) => a.map((v, j) => (j === i ? e.target.value : v)))}
                   placeholder="Respuesta"
@@ -617,7 +636,7 @@ export function CustomerOrdersRunner({ exercise, onDone }: {
   if (phase === "study") {
     const seconds = Math.ceil(timeLeft / 1000);
     return (
-      <Card className="p-6 md:p-8 border-amber-500/30 bg-amber-500/5">
+      <Card className="p-6 md:p-8 border-amber-500/40 bg-amber-500/10">
         <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
           <span className="flex items-center gap-1">
             <ChefHat className="w-3 h-3" />
@@ -631,7 +650,7 @@ export function CustomerOrdersRunner({ exercise, onDone }: {
 
         <div className="space-y-3">
           {exercise.customers.map((c, i) => (
-            <div key={i} className="flex items-start gap-3 p-3 rounded border border-border/40 bg-background/30">
+            <div key={i} className="flex items-start gap-3 p-3 rounded border border-border/40 bg-background/70">
               <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-300 flex items-center justify-center font-mono text-xs">
                 {i + 1}
               </div>
@@ -665,7 +684,7 @@ export function CustomerOrdersRunner({ exercise, onDone }: {
   }
 
   return (
-    <Card className="p-6 md:p-8 border-border/50 bg-card/50 backdrop-blur">
+    <Card className="p-6 md:p-8 border-border/60 bg-card/95">
       <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
         <span>Preguntas de comensales</span>
         <span className="flex items-center gap-1 text-amber-400">
@@ -680,7 +699,7 @@ export function CustomerOrdersRunner({ exercise, onDone }: {
           return (
             <div key={i} className={revealed ? (
               ok ? "p-3 rounded border border-emerald-500/40 bg-emerald-500/10" : "p-3 rounded border border-red-500/40 bg-red-500/10"
-            ) : "p-3 rounded border border-border/40 bg-background/30"}>
+            ) : "p-3 rounded border border-border/40 bg-background/70"}>
               <div className="text-sm text-muted-foreground mb-1">P{i + 1}: {q.q}</div>
               {revealed ? (
                 <>
@@ -689,6 +708,8 @@ export function CustomerOrdersRunner({ exercise, onDone }: {
                 </>
               ) : (
                 <Input
+                  type="text"
+                  inputMode="text"
                   value={answers[i]}
                   onChange={(e) => setAnswers((a) => a.map((v, j) => (j === i ? e.target.value : v)))}
                   placeholder="Respuesta"
@@ -782,7 +803,7 @@ export function KitchenComandaRunner({ exercise, onDone }: {
   if (phase === "study") {
     const seconds = Math.ceil(timeLeft / 1000);
     return (
-      <Card className="p-6 md:p-8 border-amber-500/30 bg-amber-500/5">
+      <Card className="p-6 md:p-8 border-amber-500/40 bg-amber-500/10">
         <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
           <span className="flex items-center gap-1">
             <ChefHat className="w-3 h-3" />
@@ -796,7 +817,7 @@ export function KitchenComandaRunner({ exercise, onDone }: {
 
         <div className="space-y-3">
           {exercise.initialState.map((t) => (
-            <div key={t.table} className="p-3 rounded border border-border/40 bg-background/30">
+            <div key={t.table} className="p-3 rounded border border-border/40 bg-background/70">
               <div className="text-sm font-mono uppercase tracking-wider text-emerald-400 mb-2">
                 Mesa {t.table}
               </div>
@@ -880,7 +901,7 @@ export function KitchenComandaRunner({ exercise, onDone }: {
 
   // ---- FASE 3: PREGUNTAS ----
   return (
-    <Card className="p-6 md:p-8 border-border/50 bg-card/50 backdrop-blur">
+    <Card className="p-6 md:p-8 border-border/60 bg-card/95">
       <div className="flex items-center justify-between mb-4 text-xs font-mono uppercase tracking-wider text-muted-foreground">
         <span>Preguntas sobre el estado final</span>
         <span className="flex items-center gap-1 text-amber-400">
@@ -895,7 +916,7 @@ export function KitchenComandaRunner({ exercise, onDone }: {
           return (
             <div key={i} className={revealed ? (
               ok ? "p-3 rounded border border-emerald-500/40 bg-emerald-500/10" : "p-3 rounded border border-red-500/40 bg-red-500/10"
-            ) : "p-3 rounded border border-border/40 bg-background/30"}>
+            ) : "p-3 rounded border border-border/40 bg-background/70"}>
               <div className="text-sm text-muted-foreground mb-1">P{i + 1}: {q.q}</div>
               {revealed ? (
                 <>
@@ -904,6 +925,8 @@ export function KitchenComandaRunner({ exercise, onDone }: {
                 </>
               ) : (
                 <Input
+                  type="text"
+                  inputMode="text"
                   value={answers[i]}
                   onChange={(e) => setAnswers((a) => a.map((v, j) => (j === i ? e.target.value : v)))}
                   placeholder="Respuesta"
