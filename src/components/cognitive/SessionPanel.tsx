@@ -158,31 +158,37 @@ export function SessionPanel({ day, onExit, onComplete }: Props) {
 
       {isRetention ? (
         <RetentionRunner
+          key={current.id}
           exercise={current as RetentionExercise}
           onDone={recordMultiResult}
         />
       ) : isMultitask ? (
         <MultitaskRunner
+          key={current.id}
           exercise={current as MultitaskScenario}
           onDone={recordMultiResult}
         />
       ) : isMenuStudy ? (
         <MenuStudyRunner
+          key={current.id}
           exercise={current as MenuStudyExercise}
           onDone={recordMultiResult}
         />
       ) : isCustomerOrders ? (
         <CustomerOrdersRunner
+          key={current.id}
           exercise={current as CustomerOrdersExercise}
           onDone={recordMultiResult}
         />
       ) : isKitchenComanda ? (
         <KitchenComandaRunner
+          key={current.id}
           exercise={current as KitchenComandaExercise}
           onDone={recordMultiResult}
         />
       ) : (
         <ExerciseRunner
+          key={current.id}
           exercise={current}
           index={currentIndex}
           total={exercises.length}

@@ -127,17 +127,18 @@ export function FreeSessionRunner({ exercises, onExit, onExitAll }: Props) {
       </div>
 
       {isRetention ? (
-        <RetentionRunner exercise={current as RetentionExercise} onDone={recordMultiResult} />
+        <RetentionRunner key={current.id} exercise={current as RetentionExercise} onDone={recordMultiResult} />
       ) : isMultitask ? (
-        <MultitaskRunner exercise={current as MultitaskScenario} onDone={recordMultiResult} />
+        <MultitaskRunner key={current.id} exercise={current as MultitaskScenario} onDone={recordMultiResult} />
       ) : isMenuStudy ? (
-        <MenuStudyRunner exercise={current as MenuStudyExercise} onDone={recordMultiResult} />
+        <MenuStudyRunner key={current.id} exercise={current as MenuStudyExercise} onDone={recordMultiResult} />
       ) : isCustomerOrders ? (
-        <CustomerOrdersRunner exercise={current as CustomerOrdersExercise} onDone={recordMultiResult} />
+        <CustomerOrdersRunner key={current.id} exercise={current as CustomerOrdersExercise} onDone={recordMultiResult} />
       ) : isKitchenComanda ? (
-        <KitchenComandaRunner exercise={current as KitchenComandaExercise} onDone={recordMultiResult} />
+        <KitchenComandaRunner key={current.id} exercise={current as KitchenComandaExercise} onDone={recordMultiResult} />
       ) : (
         <ExerciseRunner
+          key={current.id}
           exercise={current}
           index={currentIndex}
           total={exercises.length}
