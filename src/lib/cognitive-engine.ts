@@ -541,7 +541,7 @@ const NOMBRES = [
   "Elena", "Pablo", "Carmen", "Mateo", "Valeria", "Tomás", "Renata", "Bruno",
   "Florencia", "Joaquín", "Dolores", "Nicolás", "Catalina", "Emilio",
   "Mercedes", "Ramiro", "Pilar", "Santiago", "Inés", "Federico", "Cecilia",
-  "Augusto", "Manuela", "Vincente", "Josefina", "Bautista", "Antonia",
+  "Augusto", "Manuela", "Vicente", "Josefina", "Bautista", "Antonia",
 ];
 
 // Nombres separados por género, para que el ejercicio de rostros asigne
@@ -549,7 +549,7 @@ const NOMBRES = [
 const NOMBRES_HOMBRES = [
   "Juan", "Pedro", "Carlos", "Diego", "Pablo", "Mateo", "Tomás", "Bruno",
   "Joaquín", "Nicolás", "Emilio", "Ramiro", "Santiago", "Federico",
-  "Augusto", "Vincente", "Bautista",
+  "Augusto", "Vicente", "Bautista",
 ];
 const NOMBRES_MUJERES = [
   "María", "Lucía", "Ana", "Sofía", "Elena", "Carmen", "Valeria", "Renata",
